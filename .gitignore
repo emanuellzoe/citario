@@ -1,0 +1,6 @@
+node_modules
+.next
+.env*
+contracts/target
+.vercel
+.DS_Store
