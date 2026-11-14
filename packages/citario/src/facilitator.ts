@@ -123,6 +123,7 @@ async function deliver(body: any) {
     citation: c,
     pricing: {
       engine: p.pricing.engine,
+      need: p.need,
       span: p.pricing.span,
       model_price: p.pricing.model_price,
       final_price: p.pricing.price,
