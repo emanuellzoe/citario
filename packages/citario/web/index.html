@@ -666,7 +666,9 @@ $('q-pay').onclick = async () => {
     $('to-verify').onclick = () => {
       $('v-receipt').value = JSON.stringify(d.receipt, null, 2);
       $('v-passage').value = d.passage;
-      location.hash = '#verify';
+      // Scroll explicitly: setting location.hash does nothing if it is already #verify.
+      $('verify').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      history.replaceState(null, '', '#verify');
       $('v-go').click();
     };
     refresh();
