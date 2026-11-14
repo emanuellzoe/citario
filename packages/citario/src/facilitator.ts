@@ -8,6 +8,7 @@ import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSy
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { Account, actions, JsonRpcProvider, type KeyPairString } from 'near-api-js';
 import { checkCiteTx, view, type Article, type Citation } from './chain.ts';
 import { cfg, DATA_DIR, need, toNear } from './config.ts';
 import { price, type Pricing } from './pricer.ts';
@@ -183,6 +184,35 @@ export function startFacilitator(port = cfg.port) {
         if (limited(req.socket.remoteAddress ?? '?')) return send(res, 429, { error: 'too many quotes' });
         const [status, body] = await quote(await readJson(req));
         return send(res, status, body);
+      }
+      if (req.method === 'POST' && url.pathname === '/demo/pay') {
+        // Demo convenience for the web page: pays a quote with the reader agent's
+        // function-call key from .env. Localhost only; a real agent pays itself.
+        const ip = req.socket.remoteAddress ?? '';
+        if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(ip)) return send(res, 403, { error: 'demo pay is localhost only' });
+        const { quote_id } = await readJson(req);
+        const p = pending.get(quote_id);
+        if (!p) return send(res, 404, { error: 'unknown or already delivered quote' });
+        const keys: Record<string, string | undefined> = {
+          [process.env.READER_ACCOUNT_ID ?? '-']: process.env.READER_PRIVATE_KEY,
+          [process.env.READER2_ACCOUNT_ID ?? '-']: process.env.READER2_PRIVATE_KEY,
+        };
+        const key = keys[p.reader];
+        if (!key) return send(res, 403, { error: `no demo key for ${p.reader}` });
+        const acc = new Account(p.reader, new JsonRpcProvider({ url: cfg.rpcUrl }), key as KeyPairString);
+        let txHash = '';
+        try {
+          const sent: any = await acc.signAndSendTransaction({
+            receiverId: need('contractId'),
+            actions: [actions.functionCall('cite', { quote: p.quote }, 100_000_000_000_000n, 0n)],
+            waitUntil: 'FINAL',
+          });
+          txHash = sent.transaction?.hash;
+        } catch (e) {
+          return send(res, 402, { error: `cite rejected: ${String((e as Error).message).slice(0, 200)}` });
+        }
+        const [status, body] = await deliver({ quote_id, tx_hash: txHash });
+        return send(res, status, { tx_hash: txHash, explorer: `${cfg.explorer}/txns/${txHash}`, ...body });
       }
       if (req.method === 'POST' && url.pathname === '/deliver') {
         const [status, body] = await deliver(await readJson(req));
