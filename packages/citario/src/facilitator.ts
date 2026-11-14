@@ -4,9 +4,10 @@
 // hash. The passage and the pricer's rationale are released only after the chain
 // shows a `cite` for that quote by that reader at that price.
 import { randomBytes } from 'node:crypto';
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, writeFileSync, existsSync, readdirSync, statSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { checkCiteTx, view, type Article, type Citation } from './chain.ts';
 import { cfg, DATA_DIR, need, toNear } from './config.ts';
 import { price, type Pricing } from './pricer.ts';
@@ -17,6 +18,7 @@ type Pending = { quote: SignedQuote; reader: string; pricing: Pricing; need: str
 
 const pending = new Map<string, Pending>();
 const RECEIPTS = join(DATA_DIR, 'receipts');
+const WEB_INDEX = join(dirname(fileURLToPath(import.meta.url)), '..', 'web', 'index.html');
 mkdirSync(RECEIPTS, { recursive: true });
 let lastAttestation: unknown = null;
 
@@ -148,6 +150,26 @@ export function startFacilitator(port = cfg.port) {
           engine: cfg.nearAiKey ? `near-ai-cloud:${cfg.nearAiModel}` : 'local-fallback (attested: false)',
           facilitator_public_key: facilitatorKey().getPublicKey().toString(),
         });
+      }
+      if (req.method === 'GET' && (url.pathname === '/' || url.pathname === '/index.html')) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' });
+        return res.end(readFileSync(WEB_INDEX));
+      }
+      if (req.method === 'GET' && url.pathname === '/config') {
+        return send(res, 200, {
+          contract: cfg.contractId,
+          rpcUrl: cfg.rpcUrl,
+          explorer: cfg.explorer,
+          engine: cfg.nearAiKey ? `NEAR AI Cloud TEE (${cfg.nearAiModel})` : 'local fallback (attested: false)',
+          readers: [process.env.READER_ACCOUNT_ID, process.env.READER2_ACCOUNT_ID].filter(Boolean),
+        });
+      }
+      if (req.method === 'GET' && url.pathname === '/receipt/latest') {
+        // Public receipt only: the passage is never served publicly.
+        const files = readdirSync(RECEIPTS).filter((f) => f.endsWith('.json'));
+        if (!files.length) return send(res, 404, { error: 'no receipt yet' });
+        const newest = files.map((f) => ({ f, t: statSync(join(RECEIPTS, f)).mtimeMs })).sort((a, b) => b.t - a.t)[0].f;
+        return send(res, 200, { receipt: JSON.parse(readFileSync(join(RECEIPTS, newest), 'utf8')) });
       }
       if (req.method === 'GET' && url.pathname === '/attestation') {
         return send(res, lastAttestation ? 200 : 404, lastAttestation ?? { error: 'no attested quote yet' });

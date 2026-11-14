@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Citario</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230a64d8'/%3E%3Ctext x='16' y='22' font-size='18' text-anchor='middle' fill='white' font-family='Georgia'%3E%E2%80%9C%3C/text%3E%3C/svg%3E">
+<style>
+:root{--bg:#f5f5f7;--card:#fff;--ink:#1d1d1f;--mute:#6e6e73;--line:#e5e5ea;--accent:#0a64d8;--ok:#1a8f3c;--bad:#c62828;--chip:#eef3fb;--mono:ui-monospace,SFMono-Regular,Menlo,monospace}
+@media (prefers-color-scheme:dark){:root{--bg:#000;--card:#1c1c1e;--ink:#f5f5f7;--mute:#98989d;--line:#2c2c2e;--accent:#4a9eff;--ok:#32d74b;--bad:#ff6961;--chip:#1f2a3a}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,sans-serif}
+header{max-width:960px;margin:0 auto;padding:28px 16px 8px}
+h1{font-size:28px;margin:0;letter-spacing:-.02em}
+.sub{color:var(--mute);margin:4px 0 0}
+nav{max-width:960px;margin:12px auto 0;padding:0 16px;display:flex;gap:6px;flex-wrap:wrap}
+nav button{border:1px solid var(--line);background:var(--card);color:var(--ink);padding:7px 14px;border-radius:999px;font:inherit;cursor:pointer}
+nav button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+main{max-width:960px;margin:0 auto;padding:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px;margin-bottom:12px}
+.card h3{margin:0 0 6px;font-size:17px}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.chip{display:inline-block;background:var(--chip);border-radius:8px;padding:2px 8px;font-size:13px}
+.mono{font-family:var(--mono);font-size:12.5px;word-break:break-all}
+.mute{color:var(--mute)}
+label{display:block;font-size:13px;color:var(--mute);margin:10px 0 4px}
+input,textarea,select{width:100%;font:inherit;padding:9px 11px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink)}
+textarea{min-height:160px;font-family:var(--mono);font-size:12.5px}
+.btn{margin-top:12px;background:var(--accent);color:#fff;border:0;border-radius:10px;padding:9px 16px;font:inherit;cursor:pointer}
+.btn:disabled{opacity:.5}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--mute);font-weight:500;font-size:12.5px}
+.ok{color:var(--ok)}.bad{color:var(--bad)}
+.checks div{padding:4px 0;border-bottom:1px solid var(--line)}
+.checks div:last-child{border:0}
+.big{font-size:30px;font-weight:600;letter-spacing:-.02em}
+a{color:var(--accent)}
+.hide{display:none}
+.scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+<header>
+  <h1>Citario</h1>
+  <p class="sub">Agents pay authors per citation. A model in a TEE prices each request inside the author's bounds; the chain enforces them.</p>
+  <p class="sub mono" id="meta">loading…</p>
+</header>
+<nav>
+  <button data-tab="library" class="on">Library</button>
+  <button data-tab="quote">Quote</button>
+  <button data-tab="citations">Citations</button>
+  <button data-tab="verify">Verify</button>
+</nav>
+<main>
+  <section id="library"></section>
+
+  <section id="quote" class="hide">
+    <div class="card">
+      <h3>Ask for a price</h3>
+      <p class="mute">Gets a signed quote only. Before payment you see the price, the size and the passage hash, never the passage. Paying is done by the agent (<span class="mono">pnpm run reader</span>) with a key that can only call <span class="mono">cite</span>.</p>
+      <label>Article</label><select id="q-article"></select>
+      <label>Reader agent account</label><input id="q-reader">
+      <label>What the agent needs</label><input id="q-need" value="what sample size did they use?">
+      <button class="btn" id="q-go">Get quote</button>
+    </div>
+    <div id="q-out"></div>
+  </section>
+
+  <section id="citations" class="hide"><div class="card scroll" id="c-out">loading…</div></section>
+
+  <section id="verify" class="hide">
+    <div class="card">
+      <h3>Verify a receipt</h3>
+      <p class="mute">Runs in your browser against the NEAR testnet RPC, not against the facilitator. Paste a receipt from <span class="mono">data/receipts-reader/</span> or load the latest one.</p>
+      <label>Receipt JSON</label><textarea id="v-receipt"></textarea>
+      <label>Passage (optional, to check its hash)</label><input id="v-passage">
+      <div class="row"><button class="btn" id="v-go">Verify</button><button class="btn" id="v-latest" style="background:var(--mute)">Load latest receipt</button></div>
+    </div>
+    <div id="v-out"></div>
+  </section>
+</main>
+
+<script type="module">
+import { verifyMessage, decodeBase58, getBytes, toBeHex } from 'https://cdn.jsdelivr.net/npm/ethers@6.15.0/+esm';
+import * as ed from 'https://cdn.jsdelivr.net/npm/@noble/ed25519@2.1.0/+esm';
+
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const near = (y) => { const b = BigInt(y); const w = b / 10n ** 24n; const f = (b % 10n ** 24n).toString().padStart(24, '0').slice(0, 4).replace(/0+$/, ''); return f ? `${w}.${f}` : `${w}`; };
+const short = (s, n = 10) => s && s.length > n * 2 ? `${s.slice(0, n)}…${s.slice(-6)}` : s;
+
+const cfg = await (await fetch('/config')).json();
+$('meta').textContent = `contract ${cfg.contract} · testnet · pricing: ${cfg.engine}`;
+$('q-reader').value = cfg.readers?.[0] ?? '';
+
+async function rpc(method, params) {
+  const r = await fetch(cfg.rpcUrl, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) });
+  const j = await r.json();
+  if (j.error) throw new Error(JSON.stringify(j.error.cause ?? j.error));
+  return j.result;
+}
+async function view(method, args = {}, contract = cfg.contract) {
+  const r = await rpc('query', { request_type: 'call_function', finality: 'optimistic', account_id: contract, method_name: method, args_base64: btoa(JSON.stringify(args)) });
+  return JSON.parse(new TextDecoder().decode(new Uint8Array(r.result)));
+}
+async function sha256hex(s) {
+  const d = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(d)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// tabs
+document.querySelectorAll('nav button').forEach((b) => b.onclick = () => {
+  document.querySelectorAll('nav button').forEach((x) => x.classList.toggle('on', x === b));
+  document.querySelectorAll('main > section').forEach((s) => s.classList.toggle('hide', s.id !== b.dataset.tab));
+  if (b.dataset.tab === 'citations') loadCitations();
+  if (b.dataset.tab === 'library') loadLibrary();
+});
+
+async function loadLibrary() {
+  const arts = await view('list_articles', {});
+  $('q-article').innerHTML = arts.map((a) => `<option value="${esc(a.article_id)}">${esc(a.title)}</option>`).join('');
+  const rows = await Promise.all(arts.map(async (a) => {
+    const bal = await view('author_balance', { author: a.author });
+    return `<div class="card">
+      <h3>${esc(a.title)}</h3>
+      <div class="row mute"><span>by <b>${esc(a.author)}</b></span><span class="chip">${esc(a.article_id)}</span></div>
+      <div class="row" style="margin-top:12px;gap:28px">
+        <div><div class="mute">bounds</div><div class="big">${near(a.floor)}–${near(a.ceiling)}</div><div class="mute">NEAR per citation</div></div>
+        <div><div class="mute">citations</div><div class="big">${a.citations}</div></div>
+        <div><div class="mute">earned</div><div class="big">${near(a.earned)}</div><div class="mute">NEAR · ${near(bal)} withdrawable</div></div>
+      </div>
+      <label>content hash (sha256 of the text; the text itself is never on chain)</label>
+      <div class="mono">${esc(a.content_hash)}</div>
+    </div>`;
+  }));
+  $('library').innerHTML = rows.join('') || '<div class="card">No articles yet. Run <span class="mono">pnpm run setup:testnet</span>.</div>';
+}
+
+async function loadCitations() {
+  const cs = await view('list_citations', { limit: 50 });
+  $('c-out').innerHTML = cs.length ? `<table><tr><th>quote</th><th>article</th><th>reader agent</th><th>price</th><th>passage hash</th><th>block</th></tr>${cs.map((c) => `<tr>
+    <td class="mono">${esc(short(c.quote_id, 8))}</td><td>${esc(c.article_id)}</td><td>${esc(c.reader)}</td>
+    <td><b>${near(c.price)}</b> NEAR</td><td class="mono">${esc(short(c.passage_hash, 8))}</td>
+    <td><a href="${cfg.explorer}/blocks/${c.block_height}" target="_blank" rel="noopener">${c.block_height}</a></td></tr>`).join('')}</table>`
+    : 'No citations yet.';
+}
+
+$('q-go').onclick = async () => {
+  $('q-go').disabled = true;
+  $('q-out').innerHTML = '<div class="card mute">The model is reading the article inside the TEE…</div>';
+  try {
+    const r = await fetch('/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ article_id: $('q-article').value, need: $('q-need').value, reader: $('q-reader').value.trim() }) });
+    const q = await r.json();
+    if (!r.ok) throw new Error(q.error);
+    $('q-out').innerHTML = `<div class="card">
+      <div class="big">${esc(q.price_near)} NEAR</div>
+      <div class="row mute"><span>${q.sentences} sentence(s), ${q.words} words from “${esc(q.section)}”</span>
+        <span class="chip">${esc(q.engine)}</span>
+        <span class="chip ${q.attested ? 'ok' : 'bad'}">${q.attested ? 'TEE-attested ✓' : 'attested: false'}</span>
+        ${q.clamped ? `<span class="chip">clamped to ${esc(q.clamped)}</span>` : ''}</div>
+      ${q.stripped_from_need?.length ? `<p class="bad">Stripped from the need before pricing: ${q.stripped_from_need.map(esc).join(' · ')}</p>` : ''}
+      <label>passage hash (the passage itself is released after payment)</label><div class="mono">${esc(q.quote.passage_hash)}</div>
+      <label>signed quote — what the agent passes to <span class="mono">cite</span></label><div class="mono">${esc(JSON.stringify(q.quote))}</div>
+      <p class="mute">Expires ${esc(q.expires_at)}. Pay with: <span class="mono">pnpm run reader ${esc(q.quote.article_id)} "${esc($('q-need').value)}"</span></p>
+    </div>`;
+  } catch (e) {
+    $('q-out').innerHTML = `<div class="card bad">${esc(e.message)}</div>`;
+  } finally { $('q-go').disabled = false; }
+};
+
+function quoteMessage(contract, reader, q) {
+  return `citario-quote:v1:${contract}:${reader}:${q.article_id}:${q.quote_id}:${q.passage_hash}:${q.price}:${q.expires_at_ns}`;
+}
+function nearKeyBytes(pk) {
+  return getBytes(toBeHex(decodeBase58(pk.replace(/^ed25519:/, '')), 32));
+}
+
+$('v-latest').onclick = async () => {
+  const r = await fetch('/receipt/latest');
+  if (!r.ok) return ($('v-out').innerHTML = '<div class="card bad">No receipt yet; run <span class="mono">pnpm run demo</span>.</div>');
+  const j = await r.json();
+  $('v-receipt').value = JSON.stringify(j.receipt, null, 2);
+  $('v-passage').value = j.passage ?? '';
+};
+
+$('v-go').onclick = async () => {
+  const out = [];
+  const add = (name, ok, detail = '') => out.push({ name, ok, detail });
+  try {
+    const rc = JSON.parse($('v-receipt').value);
+    const contract = rc.contract;
+    const key = await view('get_facilitator_key', {}, contract);
+    add('facilitator key in receipt = key registered in the contract', key === rc.facilitator_public_key, key);
+    const sig = Uint8Array.from(atob(rc.quote.signature), (c) => c.charCodeAt(0));
+    const okSig = await ed.verifyAsync(sig, new TextEncoder().encode(quoteMessage(contract, rc.reader, rc.quote)), nearKeyBytes(key));
+    add('quote signed by that key (ed25519)', okSig);
+    try {
+      const tx = await rpc('tx', { tx_hash: rc.tx_hash, sender_account_id: rc.reader, wait_until: 'FINAL' });
+      add('cite tx succeeded on chain', !!tx.status && 'SuccessValue' in tx.status && tx.transaction.receiver_id === contract, rc.tx_hash);
+    } catch (e) { add('cite tx succeeded on chain', false, e.message); }
+    const c = await view('get_citation', { quote_id: rc.quote.quote_id }, contract);
+    add('citation stored on chain', !!c, c ? `block ${c.block_height}` : 'missing');
+    if (c) {
+      add('on-chain reader / price / passage hash = receipt', c.reader === rc.reader && c.price === rc.quote.price && c.passage_hash === rc.quote.passage_hash, `${c.reader} · ${near(c.price)} NEAR`);
+    }
+    const a = await view('get_article', { article_id: rc.quote.article_id }, contract);
+    if (a) add("price inside the author's bounds", BigInt(rc.quote.price) >= BigInt(a.floor) && BigInt(rc.quote.price) <= BigInt(a.ceiling), `${near(a.floor)}–${near(a.ceiling)} NEAR`);
+    const p = $('v-passage').value;
+    if (p) add('sha256(passage) = passage hash', (await sha256hex(p)) === rc.quote.passage_hash);
+    const ai = rc.near_ai;
+    if (!ai) add('NEAR AI Cloud TEE signature', false, 'attested: false — local pricer');
+    else {
+      let rec = '';
+      try { rec = verifyMessage(ai.signed_text, ai.signature).toLowerCase(); } catch {}
+      add(`NEAR AI response signature (${ai.signature_kind}) recovers to signing address`, rec === ai.signing_address.toLowerCase(), rec);
+      add('signed text = model : sha256(request) : sha256(response)', ai.signed_text === `${ai.model}:${ai.request_sha256}:${ai.response_sha256}` || ai.signed_text === `${ai.request_sha256}:${ai.response_sha256}`, ai.model);
+      for (const ch of ai.checks ?? []) add(`facilitator preflight: ${ch.name}`, ch.ok, ch.detail);
+    }
+  } catch (e) { add('receipt', false, e.message); }
+  const bad = out.filter((c) => !c.ok).length;
+  $('v-out').innerHTML = `<div class="card"><h3 class="${bad ? 'bad' : 'ok'}">${bad ? `${bad} check(s) failed` : 'All checks passed'}</h3>
+    <div class="checks">${out.map((c) => `<div><span class="${c.ok ? 'ok' : 'bad'}">${c.ok ? '✓' : '✗'}</span> ${esc(c.name)} <span class="mute mono">${esc(c.detail)}</span></div>`).join('')}</div>
+    <p class="mute">Full TDX/GPU attestation: <a href="https://github.com/nearai/nearai-cloud-verifier" target="_blank" rel="noopener">nearai-cloud-verifier</a> · <a href="https://cloud.near.ai/verify" target="_blank" rel="noopener">cloud.near.ai/verify</a></p></div>`;
+};
+
+loadLibrary();
+</script>
+</body>
+</html>

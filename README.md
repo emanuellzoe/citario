@@ -45,7 +45,12 @@ Requirements: Node 24+, pnpm, Rust with `wasm32-unknown-unknown` and [cargo-near
    6. receipt verification: ✓ for every chain check; with `NEARAI_API_KEY` also ✓ for the NEAR AI response signature (`provider_tee`) and the preflight attestation checks, without it ✗ `attested: false`.
    The run is saved to `demo/last-run.log`.
 5. The TEE path: put `NEARAI_API_KEY=...` in `.env` (a NEAR AI Cloud key with credits; NEAR Builders gives $10) and run `pnpm run demo`. Quotes then come from `deepseek-ai/DeepSeek-V4.1-Flash-1017`, a model hosted by NEAR AI in a TEE; each receipt carries the model's response signature and the facilitator's preflight checks. Without a key the demo still runs end to end with the local pricer, marked `attested: false`.
-6. `pnpm run test:contract` (10 tests) and `pnpm test` (5 tests).
+6. `pnpm run facilitator`, then open http://localhost:8787 → four tabs:
+   - **Library**: the article as the chain has it (bounds, citations, earnings, content hash). Read live from testnet RPC.
+   - **Quote**: type a need, get a TEE-priced signed quote (price, size, passage hash; never the passage).
+   - **Citations**: every `cite` on chain, newest first.
+   - **Verify**: "Load latest receipt" → "Verify" → `All checks passed`. The checks run in the browser against testnet RPC (ed25519 quote signature, tx status, on-chain citation, bounds, NEAR AI ECDSA signature), not through the facilitator.
+7. `pnpm run test:contract` (10 tests) and `pnpm test` (5 tests).
 
 Run the pieces by hand instead: `pnpm run facilitator`, then `pnpm run reader coffee-shade "what was the rainfall shortfall?" --max 0.2`, then `pnpm run verify data/receipts-reader/<quote_id>.json`.
 
@@ -119,6 +124,7 @@ packages/citario/src     facilitator, pricer, reader agent, verify, chain RPC, a
 demo/setup.ts            testnet accounts, deploy, register, fund
 demo/run.ts              the end-to-end demo; writes demo/last-run.log
 demo/sample-article.md   fictional paper used by the demo
+packages/citario/web     the web page served by the facilitator (Library, Quote, Citations, Verify)
 PRD.md                   the original product spec
 ```
 
@@ -127,7 +133,6 @@ PRD.md                   the original product spec
 - **Unclaimed papers**: agents pay per citation to a DOI before its author joins; funds wait in escrow until the author proves authorship and claims.
 - Payout to authors through NEAR Intents in a stablecoin; gasless claim through a meta-transaction relayer.
 - Facilitator inside a confidential VM; reader keys through OutLayer; listing the facilitator on the NEAR Agent Market.
-- Web pages for Library, Citations and Verify (the CLI does the same today).
 
 ## What is reused
 
