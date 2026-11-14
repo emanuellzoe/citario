@@ -12,13 +12,15 @@
     "verify": "node packages/citario/src/verify.ts",
     "demo": "node demo/run.ts",
     "fund:demo-agent": "node demo/fund-demo-agent.ts",
-    "build:api": "node demo/build-api.mjs"
+    "build:api": "node demo/build-api.mjs",
+    "approve-author": "node demo/approve-author.ts"
   },
   "engines": {
     "node": ">=24"
   },
   "packageManager": "pnpm@11.1.2",
   "dependencies": {
+    "@vercel/blob": "2.8.2",
     "ethers": "6.15.0",
     "near-api-js": "7.4.0"
   },

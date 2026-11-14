@@ -44,11 +44,11 @@ if (!out.status || !('SuccessValue' in out.status)) throw new Error(`deposit fai
 console.log(`deposited ${amount} NEAR on ${contract}: tx ${out.transaction.hash}`);
 const k: any = await acc.signAndSendTransaction({
   receiverId: id,
-  actions: [actions.addFunctionCallAccessKey(fc.getPublicKey(), contract, ['cite'], fromNear(1))],
+  actions: [actions.addFunctionCallAccessKey(fc.getPublicKey(), contract, ['cite', 'cite_fee', 'cite_doi'], fromNear(1))],
   waitUntil: 'FINAL',
 });
 if (!k.status || !('SuccessValue' in k.status)) throw new Error('add key failed');
-console.log(`function-call key (cite only): tx ${k.transaction.hash}`);
+console.log(`function-call key (cite, cite_fee, cite_doi only): tx ${k.transaction.hash}`);
 
 const envPath = join(ROOT, '.env');
 const lines = (existsSync(envPath) ? readFileSync(envPath, 'utf8') : '').split('\n').filter((l) => l && !l.startsWith('DEMO_READER_'));

@@ -1,10 +1,10 @@
 // End-to-end demo against testnet. Starts the facilitator in-process, then:
 // library -> two needs, two prices -> injection attempt -> forged quote -> pay
 // and receive -> verify. Every line is also written to demo/last-run.log.
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Account, actions, JsonRpcProvider, type KeyPairString } from 'near-api-js';
-import { cfg, need, ROOT, toNear } from '../packages/citario/src/config.ts';
+import { cfg, DATA_DIR, fromNear, need, ROOT, toNear } from '../packages/citario/src/config.ts';
 import { view, type Article } from '../packages/citario/src/chain.ts';
 import { startFacilitator } from '../packages/citario/src/facilitator.ts';
 import { ask } from '../packages/citario/src/reader.ts';
@@ -116,6 +116,52 @@ if (r1.receipt) {
 out('\nOn-chain citations for this article (newest first):');
 const cites = await view<any[]>('list_citations', { article_id: ARTICLE, limit: 5 });
 for (const c of cites) out(`   ${c.quote_id}  ${c.reader}  ${toNear(c.price)} NEAR  block ${c.block_height}`);
+
+
+// ---------- papers that are not (yet) on Citario ----------
+const keys = JSON.parse(readFileSync(join(DATA_DIR, 'full-access-keys.json'), 'utf8'));
+const provider = new JsonRpcProvider({ url: cfg.rpcUrl });
+const contract = need('contractId');
+async function send(accountId: string, key: string, method: string, args: object, deposit = 0n) {
+  const acc = new Account(accountId, provider, key as KeyPairString);
+  const r: any = await acc.signAndSendTransaction({ receiverId: contract, actions: [actions.functionCall(method, args, 60_000_000_000_000n, deposit)], waitUntil: 'FINAL' });
+  if (!r.status || !('SuccessValue' in r.status)) throw new Error(`${method} failed: ${JSON.stringify(r.status)}`);
+  return r.transaction.hash as string;
+}
+const DOI = `10.5555/citario.demo.${Date.now().toString(36)}`; // 10.5555 = Crossref's test prefix; a fictional paper
+const authorId = a.author;
+
+out(`\n7. UNREGISTERED PAPER — ${atlas.id} cites ${DOI}, which nobody has registered`);
+const feeTx = await send(atlas.id, atlas.key, 'cite_doi', { doi: DOI, amount: fromNear(0.02).toString() });
+let d = await view<any>('get_doi', { doi: DOI });
+out(`   cite_doi tx ${feeTx}: 0.02 NEAR held in escrow for the DOI (escrow ${toNear(d.escrow)} NEAR, owner ${d.owner ?? 'none'})`);
+out('   The agent gets no text (Citario never held it); it gets an on-chain citation record. The fee is refundable to the agent if no author is verified within the escrow period.');
+
+out(`\n8. THE AUTHOR CLAIMS IT — ${authorId} registers the DOI, the verifier approves`);
+const regTx = await send(authorId, keys[authorId], 'register_article', {
+  article_id: `doi-claim-${Date.now().toString(36)}`,
+  title: 'Shade-tree pruning and coffee rust incidence (fictional)',
+  content_hash: '',
+  floor: fromNear(0.01).toString(),
+  ceiling: fromNear(0.05).toString(),
+  license: 'publisher',
+  mode: 'CiteOnly',
+  doi: DOI,
+});
+d = await view<any>('get_doi', { doi: DOI });
+const pending = await view<any>('get_article', { article_id: d.article_id });
+out(`   register_article tx ${regTx}: license "publisher" → mode ${pending.mode} (text never sold), active ${pending.active} (pending verification)`);
+const balBefore = BigInt(await view<string>('author_balance', { author: authorId }));
+const apprTx = await send(contract, keys[contract], 'approve_author', { doi: DOI, author: authorId });
+d = await view<any>('get_doi', { doi: DOI });
+const balAfter = BigInt(await view<string>('author_balance', { author: authorId }));
+out(`   approve_author tx ${apprTx}: DOI bound to ${d.owner}, escrow ${toNear(d.escrow)} NEAR, author balance ${toNear(balBefore)} -> ${toNear(balAfter)} NEAR`);
+
+out(`\n9. THE AUTHOR CASHES OUT — ${authorId} calls withdraw`);
+const acctBefore = BigInt((await provider.viewAccount({ accountId: authorId }) as any).amount);
+const wTx = await send(authorId, keys[authorId], 'withdraw', {});
+const acctAfter = BigInt((await provider.viewAccount({ accountId: authorId }) as any).amount);
+out(`   withdraw tx ${wTx}: ${toNear(balAfter)} NEAR sent to ${authorId} (wallet ${toNear(acctBefore)} -> ${toNear(acctAfter)} NEAR, minus gas); Citario balance now ${toNear(await view<string>('author_balance', { author: authorId }))}`);
 
 writeFileSync(join(ROOT, 'demo/last-run.log'), lines.join('\n') + '\n');
 out('\nlog written to demo/last-run.log');

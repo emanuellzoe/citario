@@ -75,7 +75,7 @@ const deployed: any = await rootAcc.signAndSendTransaction({
   receiverId: root,
   actions: [
     actions.deployContract(readFileSync(WASM)),
-    actions.functionCall('new', { owner: root, facilitator_key: facilitatorKey.getPublicKey().toString() }, 100n * TGAS, 0n),
+    actions.functionCall('new', { owner: root, facilitator_key: facilitatorKey.getPublicKey().toString(), escrow_ttl_ns: String(10 * 60 * 1_000_000_000) }, 100n * TGAS, 0n),
   ],
   waitUntil: 'FINAL',
 });
@@ -114,22 +114,25 @@ const regTx = await call(author.acc, root, 'register_article', {
   content_hash: contentHash,
   floor: fromNear(0.05).toString(),
   ceiling: fromNear(0.5).toString(),
+  license: 'author-retained',
+  mode: 'Paid',
+  doi: null,
 });
 say(`   register_article tx ${regTx} (floor 0.05, ceiling 0.5 NEAR)`);
 
-say('5. owners fund the readers on Citario, then give each agent a key that can only call cite');
+say('5. owners fund the readers on Citario, then give each agent a key that can only pay (cite, cite_fee, cite_doi)');
 const readerKeys: Record<string, string> = {};
 for (const r of [scout, atlas]) {
   const depTx = await call(r.acc, root, 'deposit', {}, fromNear(1));
   const fc = KeyPair.fromRandom('ed25519');
   const out: any = await r.acc.signAndSendTransaction({
     receiverId: r.id,
-    actions: [actions.addFunctionCallAccessKey(fc.getPublicKey(), root, ['cite'], fromNear(0.25))],
+    actions: [actions.addFunctionCallAccessKey(fc.getPublicKey(), root, ['cite', 'cite_fee', 'cite_doi'], fromNear(0.25))],
     waitUntil: 'FINAL',
   });
   if (!out.status || !('SuccessValue' in out.status)) throw new Error('add key failed');
   readerKeys[r.id] = fc.toString();
-  say(`   ${r.id}: deposit 1 NEAR tx ${depTx}; function-call key (cite only) tx ${out.transaction.hash}`);
+  say(`   ${r.id}: deposit 1 NEAR tx ${depTx}; function-call key (pay methods only) tx ${out.transaction.hash}`);
 }
 
 // --- persist: .env keeps any existing NEARAI_* lines ---

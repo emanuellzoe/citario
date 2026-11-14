@@ -18,7 +18,8 @@ import { checkCiteTx, view, type Article, type Citation } from './chain.ts';
 import { cfg, DATA_DIR, need, toNear } from './config.ts';
 import { price, type Pricing } from './pricer.ts';
 import { facilitatorKey, signQuote, type SignedQuote } from './quote.ts';
-import { loadArticle, passageOf, sentences, sha256 } from './text.ts';
+import { crossrefWork, classify, normalizeDoi, type Work } from './crossref.ts';
+import { loadArticle, passageOf, sentences, sha256, storeArticleAnywhere } from './text.ts';
 
 type Ticket = { quote: SignedQuote; reader: string; pricing: Pricing; need: string; stripped: string[] };
 
@@ -109,7 +110,7 @@ async function quote(body: any) {
   const article = await view<Article | null>('get_article', { article_id });
   if (!article) return [404, { error: 'unknown article' }] as const;
 
-  const text = loadArticle(article_id);
+  const text = await loadArticle(article_id);
   if (sha256(text) !== article.content_hash) return [409, { error: 'stored text does not match the on-chain content_hash' }] as const;
   const all = sentences(text);
   const { pricing, stripped } = await price(all, needText, BigInt(article.floor), BigInt(article.ceiling));
@@ -161,7 +162,7 @@ async function deliver(body: any) {
   if (c.price !== t.quote.price) return [402, { error: 'paid price differs from quote' }] as const;
   if (c.passage_hash !== t.quote.passage_hash) return [402, { error: 'passage hash differs from quote' }] as const;
 
-  const all = sentences(loadArticle(t.quote.article_id));
+  const all = sentences(await loadArticle(t.quote.article_id));
   const passage = passageOf(all, t.pricing.span[0], t.pricing.span[1]);
   if (sha256(passage) !== t.quote.passage_hash) return [500, { error: 'passage changed since quote' }] as const;
 
@@ -222,6 +223,117 @@ async function tryPay(body: any, ip: string) {
   return [status, { tx_hash: txHash, explorer: `${cfg.explorer}/txns/${txHash}`, ...out }] as const;
 }
 
+// ---------- authors: prepare a registration ----------
+
+function slug(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'article';
+}
+
+/**
+ * Checks the license (Crossref when a DOI is given), encrypts and stores the
+ * text for Paid articles, and returns the exact args for `register_article`,
+ * which the author then signs with their own wallet.
+ */
+async function prepareRegistration(body: any) {
+  const { title, text, doi, license: claimed, author } = body ?? {};
+  if (typeof title !== 'string' || title.trim().length < 3 || title.length > 300) return [400, { error: 'title must be 3-300 characters' }] as const;
+  if (typeof author !== 'string' || !/^[a-z0-9._-]{2,64}$/.test(author)) return [400, { error: 'author must be your NEAR account id' }] as const;
+  let work: Work | null = null;
+  let doiNorm: string | null = null;
+  if (doi) {
+    try {
+      doiNorm = normalizeDoi(String(doi));
+    } catch (e) {
+      return [400, { error: (e as Error).message }] as const;
+    }
+    const onChain = await view<any>('get_doi', { doi: doiNorm });
+    if (onChain.article_id) return [409, { error: `DOI already registered as ${onChain.article_id}` }] as const;
+    if (onChain.owner && onChain.owner !== author) return [409, { error: `DOI is bound to ${onChain.owner}` }] as const;
+    work = await crossrefWork(doiNorm);
+  }
+  const cls = classify(work, typeof claimed === 'string' ? claimed : undefined);
+  const articleId = `${slug(title)}-${randomBytes(2).toString('hex')}`;
+  let contentHash = '';
+  let stored: string | null = null;
+  if (cls.mode === 'Paid') {
+    if (typeof text !== 'string' || text.trim().length < 200) return [400, { error: 'paste the article text (at least 200 characters) to sell passages' }] as const;
+    if (text.length > 200_000) return [413, { error: 'text too long (max 200k characters)' }] as const;
+    if (sentences(text).length < 8) return [400, { error: 'the text needs at least 8 sentences' }] as const;
+    const s = await storeArticleAnywhere(articleId, text);
+    contentHash = s.hash;
+    stored = s.where;
+  }
+  return [
+    200,
+    {
+      article_id: articleId,
+      license: cls.license,
+      mode: cls.mode,
+      reason: cls.reason,
+      crossref: work,
+      stored,
+      pending_verification: !!doiNorm,
+      register_args: { article_id: articleId, title: title.trim(), content_hash: contentHash, license: cls.license, mode: cls.mode, doi: doiNorm },
+      next: doiNorm
+        ? 'Sign register_article with your wallet. A DOI registration stays pending until the Citario verifier checks you are an author on the paper (Crossref author list / ORCID); approval also releases any escrowed fees for this DOI.'
+        : 'Sign register_article with your wallet. Without a DOI the registration is active immediately, on your own statement that you hold the rights.',
+    },
+  ] as const;
+}
+
+async function doiStatus(doiIn: string) {
+  let doi: string;
+  try {
+    doi = normalizeDoi(doiIn);
+  } catch (e) {
+    return [400, { error: (e as Error).message }] as const;
+  }
+  const [work, chain] = await Promise.all([crossrefWork(doi), view<any>('get_doi', { doi })]);
+  const article = chain.article_id ? await view<Article | null>('get_article', { article_id: chain.article_id }) : null;
+  const cls = classify(work);
+  const status = !chain.owner && !chain.article_id ? 'unregistered' : article && !article.active ? 'pending_verification' : 'registered';
+  return [
+    200,
+    {
+      doi,
+      status,
+      crossref: work,
+      license: cls,
+      chain,
+      article,
+      how_to_pay:
+        status === 'registered' && article?.mode === 'Paid'
+          ? `POST /quote {article_id: "${article.article_id}"} for a priced passage, or cite_doi for a plain citation fee`
+          : status === 'registered'
+            ? 'cite_doi or cite_fee: citation fee only, the text is not for sale'
+            : 'cite_doi: the fee waits in escrow until a verified author claims this DOI; refundable to you after the escrow period',
+    },
+  ] as const;
+}
+
+/** Demo agent pays a citation fee to a DOI (escrowed if unregistered). */
+async function tryCiteDoi(body: any, ip: string) {
+  const doi = String(body?.doi ?? '');
+  const id = process.env.DEMO_READER_ACCOUNT_ID;
+  const key = id ? demoKeys()[id] : undefined;
+  if (!id || !key) return [403, { error: 'no demo agent configured' }] as const;
+  if (limited(`pay:${ip}`, Number(process.env.DEMO_PAY_PER_HOUR ?? 6), 3_600_000)) return [429, { error: 'demo agent limit reached for this hour' }] as const;
+  const cfgView = await view<any>('get_config', {});
+  const acc = new Account(id, new JsonRpcProvider({ url: cfg.rpcUrl }), key as KeyPairString);
+  try {
+    const sent: any = await acc.signAndSendTransaction({
+      receiverId: need('contractId'),
+      actions: [actions.functionCall('cite_doi', { doi, amount: cfgView.min_cite_fee }, 50_000_000_000_000n, 0n)],
+      waitUntil: 'FINAL',
+    });
+    const txHash = sent.transaction?.hash;
+    return [200, { tx_hash: txHash, explorer: `${cfg.explorer}/txns/${txHash}`, reader: id, amount: cfgView.min_cite_fee, doi: await view<any>('get_doi', { doi }) }] as const;
+  } catch (e) {
+    const msg = String((e as Error).message);
+    return [402, { error: `cite_doi rejected: ${msg.match(/not a DOI[^"]*|reader balance too low|amount below[^"]*/)?.[0] ?? msg.slice(0, 200)}` }] as const;
+  }
+}
+
 export async function handle(req: IncomingMessage, res: ServerResponse) {
   try {
     const url = new URL(req.url ?? '/', 'http://x');
@@ -272,6 +384,19 @@ export async function handle(req: IncomingMessage, res: ServerResponse) {
     }
     if (req.method === 'POST' && (path === '/try/pay' || path === '/demo/pay')) {
       const [status, body] = await tryPay(await readJson(req), ip);
+      return send(res, status, body);
+    }
+    if (req.method === 'GET' && path === '/doi') {
+      const [status, body] = await doiStatus(url.searchParams.get('doi') ?? '');
+      return send(res, status, body);
+    }
+    if (req.method === 'POST' && path === '/authors/prepare') {
+      if (limited(`prep:${ip}`, Number(process.env.REGISTRATIONS_PER_HOUR ?? 10), 3_600_000)) return send(res, 429, { error: 'too many registrations from this address' });
+      const [status, body] = await prepareRegistration(await readJson(req));
+      return send(res, status, body);
+    }
+    if (req.method === 'POST' && path === '/try/cite-doi') {
+      const [status, body] = await tryCiteDoi(await readJson(req), ip);
       return send(res, status, body);
     }
     if (req.method === 'POST' && path === '/deliver') {
