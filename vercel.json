@@ -10,11 +10,15 @@
   },
   "rewrites": [
     {
-      "source": "/(quote|deliver|config|health|attestation)",
+      "source": "/(quote|deliver|config|health|attestation|doi)",
       "destination": "/api/index"
     },
     {
-      "source": "/try/pay",
+      "source": "/try/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/authors/:path*",
       "destination": "/api/index"
     },
     {

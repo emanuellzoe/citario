@@ -145,7 +145,7 @@ textarea{min-height:150px;font:12.5px/1.5 var(--mono)}
 .art h3{margin:0 0 4px;font-weight:500;font-size:19px;line-height:1.35;color:var(--ink-strong)}
 .art .meta{font-size:14px;color:var(--gray)}
 .metric{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:18px 0 14px}
-.metric div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.metric>div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
 .metric .k{font-size:13px;color:var(--gray)}
 .metric .v{font-size:32px;letter-spacing:-.03em;color:var(--ink-strong);line-height:1.2}
 .prog{height:10px;border-radius:6px;background:var(--canvas);overflow:hidden;margin-top:8px}
@@ -200,8 +200,9 @@ footer .wordmark{font-size:26px}
       <a class="dim" href="#how">How it works</a>
       <a href="#quote">Quote</a>
       <a href="#settle">Settle</a>
+      <a href="#doi">Any paper</a>
+      <a href="#authors">Authors</a>
       <a href="#verify">Verify</a>
-      <a href="#trust">Trust</a>
     </div>
     <a class="btn" href="#quote">Run a citation</a>
   </div>
@@ -308,10 +309,76 @@ footer .wordmark{font-size:26px}
   </div>
 </section>
 
+<section class="block" id="doi">
+  <div class="wrap split">
+    <div>
+      <p class="num">3.0 — Any paper</p>
+      <h2>Not on Citario yet? <span>Agents can still pay its authors</span></h2>
+      <p class="lede">Any DOI can receive a citation fee. If no verified author holds it, the fee waits in escrow; the first verified author collects it, and if nobody does, each agent can take theirs back.</p>
+      <details class="acc" open><summary><span class="n">3.1</span>Citario only sees what goes through it</summary><p>An agent that read a paper elsewhere is not detected. Agents pay because Citario gives them text they cannot get free, a citation they can prove, or simply to pay authors fairly.</p></details>
+      <details class="acc"><summary><span class="n">3.2</span>No text, no sale</summary><p>For papers Citario does not hold, the agent pays a citation fee and gets an on-chain record. Nothing is sold.</p></details>
+      <details class="acc"><summary><span class="n">3.3</span>Escrow with an exit</summary><p>Fees wait for a verified author. After the escrow period (10 minutes on this testnet demo, 180 days by default) each payer can refund their own share.</p></details>
+    </div>
+    <div class="dots">
+      <div class="card form">
+        <label>DOI</label><input id="d-doi" value="10.1371/journal.pone.0185809">
+        <div class="presets">
+          <button data-doi="10.1371/journal.pone.0185809">PLOS ONE · CC-BY</button>
+          <button data-doi="10.1038/nature14539">Nature · publisher</button>
+        </div>
+        <div class="row"><button class="btn" id="d-go">Look up</button></div>
+      </div>
+      <div class="card" id="d-out" style="margin-top:12px"><div class="result-head gray">Look up a DOI to see its license, its status on Citario and any escrow waiting for its authors.</div></div>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="authors">
+  <div class="wrap split rev">
+    <div class="dots">
+      <div class="card form">
+        <div id="a-who" class="who" style="margin-top:0"></div>
+      </div>
+      <div class="card form" style="margin-top:12px" id="a-dash"></div>
+      <div class="card form" style="margin-top:12px">
+        <h3 style="margin:0 0 4px;font-weight:500">Register a paper</h3>
+        <label>Title</label><input id="a-title" placeholder="Your paper's title">
+        <label>DOI (optional)</label><input id="a-doi" placeholder="10.xxxx/… — leave empty for a preprint or self-published text">
+        <label>License (used when Crossref has none)</label>
+        <select id="a-license">
+          <option value="author-retained">I hold the rights (author-retained)</option>
+          <option value="CC-BY-4.0">CC-BY 4.0</option>
+          <option value="CC-BY-SA-4.0">CC-BY-SA 4.0</option>
+          <option value="CC0-1.0">CC0</option>
+          <option value="CC-BY-NC-4.0">CC-BY-NC 4.0 (citation fees only)</option>
+          <option value="publisher">Publisher holds the copyright (citation fees only)</option>
+        </select>
+        <label>Full text (needed only if the text may be sold)</label><textarea id="a-text" placeholder="Paste the article. It is encrypted for the facilitator; the chain only stores its sha256."></textarea>
+        <div class="metric" style="grid-template-columns:1fr 1fr;margin:12px 0 0">
+          <div><label style="margin:0 0 6px">Floor (NEAR)</label><input id="a-floor" value="0.05"></div>
+          <div><label style="margin:0 0 6px">Ceiling (NEAR)</label><input id="a-ceil" value="0.5"></div>
+        </div>
+        <label style="display:flex;gap:8px;align-items:flex-start;color:var(--ink)"><input type="checkbox" id="a-attest" style="width:auto;margin-top:4px"> I am an author of this paper and the license above is correct.</label>
+        <div class="row"><button class="btn" id="a-go">Check &amp; register</button></div>
+        <div id="a-out" style="margin-top:12px"></div>
+      </div>
+    </div>
+    <div>
+      <p class="num">4.0 — Authors</p>
+      <h2>Register once, <span>get paid every time an agent cites you</span></h2>
+      <p class="lede">Connect a NEAR wallet, add your paper, and withdraw whenever you like. The license decides what agents can buy.</p>
+      <details class="acc" open><summary><span class="n">4.1</span>The license decides the mode</summary><p>Author-retained, CC0, CC-BY and CC-BY-SA: agents can buy priced passages. CC-BY-NC, publisher copyright or unknown: citation fees only, the text is never sold. With a DOI, Crossref's license record wins over your choice.</p></details>
+      <details class="acc"><summary><span class="n">4.2</span>A DOI needs a human check</summary><p>A registration with a DOI stays pending until the Citario verifier matches your account to the paper's author list (Crossref, ORCID, the email on the paper). Approval also releases any escrowed fees for that DOI to you.</p></details>
+      <details class="acc"><summary><span class="n">4.3</span>Withdraw any time</summary><p>Fees land in your Citario balance; one <span class="mono">withdraw</span> sends all of it to your wallet.</p></details>
+      <details class="acc"><summary><span class="n">4.4</span>Where the text lives</summary><p>Encrypted (AES-256-GCM) in a private store only the facilitator can read. The facilitator decrypts it in memory to price a request; the model reads it inside a TEE.</p></details>
+    </div>
+  </div>
+</section>
+
 <section class="block" id="verify">
   <div class="wrap split">
     <div>
-      <p class="num">3.0 — Verify</p>
+      <p class="num">5.0 — Verify</p>
       <h2>Don't trust the facilitator <span>check the receipt yourself</span></h2>
       <p class="lede">These checks run in your browser against the NEAR testnet RPC: quote signature, transaction, on-chain citation, author bounds and the TEE's response signature.</p>
       <div class="card form">
@@ -329,7 +396,7 @@ footer .wordmark{font-size:26px}
 
 <section class="block" id="trust">
   <div class="wrap">
-    <p class="num">4.0 — Trust</p>
+    <p class="num">6.0 — Trust</p>
     <h2>Who can read the full article <span>the honest version, today</span></h2>
     <div class="card tablewrap" style="margin-top:30px">
       <table class="trust">
@@ -430,7 +497,8 @@ async function refresh() {
   $('k-quotes').textContent = new Set(cites.map((c) => c.reader)).size;
   if (arts[0]) $('n-author').textContent = acct(arts[0].author);
 
-  if (!$('q-article').options.length) $('q-article').innerHTML = arts.map((a) => `<option value="${esc(a.article_id)}">${esc(a.title)}</option>`).join('');
+  { const cur = $('q-article').value; $('q-article').innerHTML = arts.filter((a) => a.mode === 'Paid' && a.active).map((a) => `<option value="${esc(a.article_id)}">${esc(a.title)}</option>`)
+.join(''); if (cur) $('q-article').value = cur; }
 
   const libs = await Promise.all(arts.map(async (a) => {
     const bal = await view('author_balance', { author: a.author });
@@ -438,6 +506,7 @@ async function refresh() {
     return `<div class="card art">
       <h3>${esc(a.title)}</h3>
       <div class="meta">by ${esc(a.author)} · <span class="mono">${esc(a.article_id)}</span></div>
+      <div style="margin-top:8px">${tags(a)}</div>
       <div class="metric">
         <div><div class="k">Bounds / citation</div><div class="v">${near(a.floor)}–${near(a.ceiling)}</div></div>
         <div><div class="k">Citations</div><div class="v">${a.citations}</div></div>
@@ -501,9 +570,9 @@ function renderWho() {
         const w = await c.connect();
         walletAccount = (await w.getAccounts())?.[0]?.accountId ?? null;
       } catch (e) { $('who').insertAdjacentHTML('beforeend', `<span class="bad">${esc(e.message ?? e)}</span>`); return; }
-      renderWho();
+      renderWho(); renderAuthor();
     });
-    $('w-out')?.addEventListener('click', async () => { try { const c = await getConnector(); await c.disconnect(); } catch {} walletAccount = null; renderWho(); });
+    $('w-out')?.addEventListener('click', async () => { try { const c = await getConnector(); await c.disconnect(); } catch {} walletAccount = null; renderWho(); renderAuthor(); });
   }
   $('n-reader').textContent = reader() ? acct(reader()) : 'you';
 }
@@ -601,6 +670,134 @@ $('q-pay').onclick = async () => {
     tl(3, 'fail', `<span class="bad">${esc(e.message)}</span>`);
   } finally { $('q-go').disabled = false; current = null; }
 };
+
+
+// ---------- shared helpers for papers ----------
+function tags(a) {
+  return `<span class="chip ${a.mode === 'Paid' ? 'ok' : 'gray'}">${a.mode === 'Paid' ? 'passages for sale' : 'citation fees only'}</span>
+    <span class="chip gray">${esc(a.license)}</span>
+    ${a.doi ? `<span class="chip gray">doi ${esc(a.doi)}</span>` : ''}
+    ${a.active ? '' : '<span class="chip bad">pending verification</span>'}`;
+}
+const yocto = (n) => { const [w, f = ''] = String(n).trim().split('.'); return (BigInt(w || '0') * 10n ** 24n + BigInt((f + '0'.repeat(24)).slice(0, 24))).toString(); };
+async function walletCall(method, args, deposit = '0', gas = '60000000000000') {
+  const w = await (await getConnector()).wallet();
+  const out = await w.signAndSendTransaction({ receiverId: cfg.contract, actions: [{ type: 'FunctionCall', params: { methodName: method, args, gas, deposit } }] });
+  if (out?.status?.Failure) throw new Error(JSON.stringify(out.status.Failure).slice(0, 240));
+  return out?.transaction?.hash ?? out?.transaction_outcome?.id;
+}
+async function ensureWallet() {
+  if (walletAccount) return walletAccount;
+  const c = await getConnector();
+  const w = await c.connect();
+  walletAccount = (await w.getAccounts())?.[0]?.accountId ?? null;
+  renderWho(); renderAuthor();
+  return walletAccount;
+}
+
+// ---------- 3.0 any paper (DOI) ----------
+document.querySelectorAll('#doi .presets button').forEach((b) => b.onclick = () => { $('d-doi').value = b.dataset.doi; $('d-go').click(); });
+let minFee = null;
+async function lookupDoi() {
+  $('d-out').innerHTML = '<div class="result-head gray">Asking Crossref and the contract…</div>';
+  const r = await fetch(`/doi?doi=${encodeURIComponent($('d-doi').value)}`);
+  const j = await r.json();
+  if (!r.ok) { $('d-out').innerHTML = `<div class="result-head bad">${esc(j.error)}</div>`; return; }
+  if (!minFee) minFee = (await view('get_config', {})).min_cite_fee;
+  const cr = j.crossref;
+  const st = { unregistered: ['chip', 'not on Citario — fees go to escrow'], pending_verification: ['chip bad', 'registered, pending verification — fees go to escrow'], registered: ['chip ok', `registered by ${esc(j.chain.owner ?? j.article?.author)}`] }[j.status];
+  $('d-out').innerHTML = `<div class="result-head">${cr.found ? esc(cr.title) : `<span class="gray">No Crossref record for</span> <span class="mono">${esc(j.doi)}</span>`}</div>
+    <div style="padding:16px 20px">
+      ${cr.found ? `<div class="gray" style="font-size:14px">${esc(cr.authors.slice(0, 6).map((a) => a.name).join(', '))}${cr.authors.length > 6 ? ' et al.' : ''} · ${esc(cr.publisher ?? '')}</div>` : ''}
+      <div style="margin:10px 0"><span class="${st[0]}">${st[1]}</span> <span class="chip gray">${esc(j.license.license)}</span> <span class="chip ${j.license.mode === 'Paid' ? 'ok' : 'gray'}">${j.license.mode === 'Paid' ? 'text may be sold' : 'citation fees only'}</span></div>
+      <div class="gray" style="font-size:14px">${esc(j.license.reason)}</div>
+      <div class="metric" style="margin:14px 0 6px">
+        <div><div class="k">In escrow</div><div class="v">${near(j.chain.escrow)}</div></div>
+        <div><div class="k">Fee citations</div><div class="v">${j.chain.fee_citations}</div></div>
+        <div><div class="k">Total fees</div><div class="v">${near(j.chain.total_fees)}</div></div>
+      </div>
+      <div class="row">
+        ${demoReader ? `<button class="btn" id="d-demo">Cite with demo agent · ${near(minFee)} NEAR</button>` : ''}
+        <button class="btn light" id="d-wallet">Cite with my wallet</button>
+      </div>
+      <div id="d-res" style="margin-top:10px;font-size:14px"></div>
+    </div>`;
+  $('d-demo')?.addEventListener('click', async (e) => {
+    e.target.disabled = true; $('d-res').innerHTML = '<span class="gray">The demo agent is paying…</span>';
+    const r2 = await fetch('/try/cite-doi', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doi: j.doi }) });
+    const k = await r2.json();
+    $('d-res').innerHTML = r2.ok ? `Paid ${near(k.amount)} NEAR · <a class="mono" target="_blank" rel="noopener" href="${esc(k.explorer)}">${esc(short(k.tx_hash, 8))} ↗</a>` : `<span class="bad">${esc(k.error)}</span>`;
+    if (r2.ok) setTimeout(lookupDoi, 1500);
+  });
+  $('d-wallet').addEventListener('click', async () => {
+    try {
+      await ensureWallet();
+      $('d-res').innerHTML = '<span class="gray">Confirm in your wallet…</span>';
+      const h = await walletCall('cite_doi', { doi: j.doi, amount: minFee }, minFee);
+      $('d-res').innerHTML = `Paid ${near(minFee)} NEAR · <a class="mono" target="_blank" rel="noopener" href="${cfg.explorer}/txns/${esc(h)}">${esc(short(h, 8))} ↗</a>`;
+      setTimeout(lookupDoi, 1500);
+    } catch (e) { $('d-res').innerHTML = `<span class="bad">${esc(e.message ?? e)}</span>`; }
+  });
+}
+$('d-go').onclick = lookupDoi;
+
+// ---------- 4.0 authors ----------
+async function renderAuthor() {
+  if (!walletAccount) {
+    $('a-who').innerHTML = '<button class="btn sm" id="a-in">Connect testnet wallet</button><span class="gray" style="font-size:13px">to register papers and withdraw earnings</span>';
+    $('a-in').onclick = async () => { try { await ensureWallet(); } catch (e) { $('a-who').insertAdjacentHTML('beforeend', `<span class="bad">${esc(e.message ?? e)}</span>`); } };
+    $('a-dash').innerHTML = '<div class="gray">Your papers, earnings and withdrawals appear here once a wallet is connected.</div>';
+    return;
+  }
+  $('a-who').innerHTML = `<span class="chip ok">connected</span><b>${esc(walletAccount)}</b>`;
+  const [arts, bal, earned] = await Promise.all([view('list_articles', { limit: 100 }), view('author_balance', { author: walletAccount }), view('author_earnings', { author: walletAccount })]);
+  const mine = arts.filter((a) => a.author === walletAccount);
+  $('a-dash').innerHTML = `<div class="metric" style="margin:0 0 12px">
+      <div><div class="k">Withdrawable</div><div class="v">${near(bal)}</div></div>
+      <div><div class="k">Earned total</div><div class="v">${near(earned)}</div></div>
+      <div><div class="k">Papers</div><div class="v">${mine.length}</div></div>
+    </div>
+    <div class="row" style="margin-top:0"><button class="btn" id="a-withdraw" ${BigInt(bal) > 0n ? '' : 'disabled'}>Withdraw ${near(bal)} NEAR</button></div>
+    <div id="a-wres" style="margin-top:8px;font-size:14px"></div>
+    ${mine.map((a) => `<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><b style="font-weight:500">${esc(a.title)}</b><div style="margin-top:6px">${tags(a)}</div><div class="gray" style="font-size:13px;margin-top:6px">${a.citations} citations · ${near(a.earned)} NEAR earned</div></div>`).join('')}`;
+  $('a-withdraw').onclick = async () => {
+    try {
+      $('a-wres').innerHTML = '<span class="gray">Confirm in your wallet…</span>';
+      const h = await walletCall('withdraw', {});
+      $('a-wres').innerHTML = `Sent to your wallet · <a class="mono" target="_blank" rel="noopener" href="${cfg.explorer}/txns/${esc(h)}">${esc(short(h, 8))} ↗</a>`;
+      setTimeout(renderAuthor, 1500);
+    } catch (e) { $('a-wres').innerHTML = `<span class="bad">${esc(e.message ?? e)}</span>`; }
+  };
+}
+
+$('a-go').onclick = async () => {
+  const out = (h) => { $('a-out').innerHTML = h; };
+  try {
+    if (!$('a-attest').checked) return out('<span class="bad">Confirm that you are an author and the license is correct.</span>');
+    const author = await ensureWallet();
+    if (!author) return;
+    out('<span class="gray">Checking the license and storing the text…</span>');
+    const r = await fetch('/authors/prepare', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ title: $('a-title').value, doi: $('a-doi').value.trim() || null, license: $('a-license').value, text: $('a-text').value, author }) });
+    const p = await r.json();
+    if (!r.ok) return out(`<span class="bad">${esc(p.error)}</span>`);
+    out(`<div><span class="chip ${p.mode === 'Paid' ? 'ok' : 'gray'}">${p.mode === 'Paid' ? 'passages for sale' : 'citation fees only'}</span> <span class="chip gray">${esc(p.license)}</span>${p.pending_verification ? ' <span class="chip bad">will be pending verification</span>' : ''}</div>
+      <div class="gray" style="font-size:14px;margin-top:6px">${esc(p.reason)}</div>
+      ${p.crossref?.found ? `<div style="font-size:14px;margin-top:6px">Crossref: “${esc(p.crossref.title)}” — ${esc(p.crossref.authors.slice(0, 4).map((a) => a.name).join(', '))}</div>` : ''}
+      <div class="gray" style="font-size:13px;margin-top:6px">${esc(p.next)}</div>
+      <div class="row"><button class="btn" id="a-sign">Sign register_article</button></div><div id="a-sres" style="margin-top:8px;font-size:14px"></div>`);
+    $('a-sign').onclick = async () => {
+      try {
+        $('a-sres').innerHTML = '<span class="gray">Confirm in your wallet…</span>';
+        const args = { ...p.register_args, floor: yocto($('a-floor').value), ceiling: yocto($('a-ceil').value) };
+        const h = await walletCall('register_article', args, '0', '100000000000000');
+        $('a-sres').innerHTML = `Registered · <a class="mono" target="_blank" rel="noopener" href="${cfg.explorer}/txns/${esc(h)}">${esc(short(h, 8))} ↗</a>`;
+        renderAuthor(); refresh();
+      } catch (e) { $('a-sres').innerHTML = `<span class="bad">${esc(e.message ?? e)}</span>`; }
+    };
+  } catch (e) { out(`<span class="bad">${esc(e.message ?? e)}</span>`); }
+};
+renderAuthor();
+if (!walletAccount) getConnector().then((c) => c.wallet()).then((w) => w.getAccounts()).then((a) => { if (a?.[0]?.accountId) { walletAccount = a[0].accountId; renderWho(); renderAuthor(); } }).catch(() => {});
 
 // ---------- verify ----------
 function quoteMessage(contract, reader, q) {
