@@ -597,7 +597,7 @@ renderWho();
 
 $('q-go').onclick = async () => {
   if (!reader()) { renderWho(); tl(1, 'fail', mode === 'wallet' ? 'Connect a testnet wallet first.' : 'No demo agent configured.'); return; }
-  $('q-go').disabled = true; $('q-pay').disabled = true; current = null; resetTl();
+  $('q-go').disabled = true; $('q-pay').disabled = true; $('q-pay').textContent = 'Pay & unlock'; current = null; resetTl();
   tl(1, 'on', 'The model is reading the article inside the TEE…');
   $('m-need').textContent = $('q-need').value;
   $('m-status').innerHTML = `<span class="spin"></span><b>Pricing agent</b><span class="what">reading the article inside the TEE…</span><span class="chip">Running</span>`;
@@ -631,19 +631,23 @@ $('q-pay').onclick = async () => {
       d = await r.json();
       if (!r.ok) throw new Error(d.error);
     } else {
-      tl(3, 'on', 'Confirm the transaction in your wallet: <span class="mono">deposit</span> + <span class="mono">cite</span>…');
-      const w = await (await getConnector()).wallet();
-      const out = await w.signAndSendTransaction({
-        receiverId: cfg.contract,
-        actions: [
-          { type: 'FunctionCall', params: { methodName: 'deposit', args: {}, gas: '30000000000000', deposit: current.quote.price } },
-          { type: 'FunctionCall', params: { methodName: 'cite', args: { quote: current.quote }, gas: '100000000000000', deposit: '0' } },
-        ],
-      });
-      const txHash = out?.transaction?.hash ?? out?.transaction_outcome?.id;
-      if (!txHash) throw new Error('the wallet did not return a transaction hash');
-      if (out?.status?.Failure) throw new Error(`cite rejected: ${JSON.stringify(out.status.Failure).slice(0, 200)}`);
-      tl(3, 'on', `Signed. Waiting for the facilitator to see <span class="mono">${esc(short(txHash, 8))}</span> on chain…`);
+      let txHash = current.paidTx;
+      if (!txHash) {
+        tl(3, 'on', 'Confirm the transaction in your wallet: <span class="mono">deposit</span> + <span class="mono">cite</span>…');
+        const w = await (await getConnector()).wallet();
+        const out = await w.signAndSendTransaction({
+          receiverId: cfg.contract,
+          actions: [
+            { type: 'FunctionCall', params: { methodName: 'deposit', args: {}, gas: '30000000000000', deposit: current.quote.price } },
+            { type: 'FunctionCall', params: { methodName: 'cite', args: { quote: current.quote }, gas: '100000000000000', deposit: '0' } },
+          ],
+        });
+        txHash = out?.transaction?.hash ?? out?.transaction_outcome?.id;
+        if (!txHash) throw new Error('the wallet did not return a transaction hash');
+        if (out?.status?.Failure) throw new Error(`cite rejected: ${JSON.stringify(out.status.Failure).slice(0, 200)}`);
+        current.paidTx = txHash; // paid: from here on, only delivery is retried
+      }
+      tl(3, 'on', `Paid. Waiting for the facilitator to see <span class="mono">${esc(short(txHash, 8))}</span> on chain…`);
       let r, j;
       for (let i = 0; i < 6; i++) {
         r = await fetch('/deliver', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket: current.ticket, tx_hash: txHash }) });
@@ -666,9 +670,14 @@ $('q-pay').onclick = async () => {
       $('v-go').click();
     };
     refresh();
+    current = null;
+    $('q-pay').textContent = 'Pay & unlock';
   } catch (e) {
-    tl(3, 'fail', `<span class="bad">${esc(e.message)}</span>`);
-  } finally { $('q-go').disabled = false; current = null; }
+    const paid = current?.paidTx;
+    tl(3, 'fail', `<span class="bad">${esc(e.message)}</span>${paid ? `<div class="gray" style="font-size:13px;margin-top:6px">Your payment is on chain (<a class="mono" target="_blank" rel="noopener" href="${cfg.explorer}/txns/${esc(paid)}">${esc(short(paid, 8))} ↗</a>). Retry delivery without paying again.</div>` : ''}`);
+    if (paid) { $('q-pay').disabled = false; $('q-pay').textContent = 'Retry delivery'; }
+    else current = null;
+  } finally { $('q-go').disabled = false; }
 };
 
 

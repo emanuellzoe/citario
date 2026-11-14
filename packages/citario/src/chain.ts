@@ -63,8 +63,9 @@ export async function checkCiteTx(txHash: string, reader: string): Promise<strin
     return `tx not found for ${reader}: ${(e as Error).message}`;
   }
   if (tx.transaction?.receiver_id !== need('contractId')) return 'tx was not sent to the Citario contract';
-  const fc = tx.transaction?.actions?.find((a: any) => a.FunctionCall)?.FunctionCall;
-  if (fc?.method_name !== 'cite') return 'tx did not call cite';
+  // Wallet users send deposit + cite in one tx, so look at every action.
+  const calls = (tx.transaction?.actions ?? []).map((a: any) => a.FunctionCall?.method_name).filter(Boolean);
+  if (!calls.includes('cite')) return 'tx did not call cite';
   if (!tx.status || !('SuccessValue' in tx.status)) return `tx failed: ${JSON.stringify(tx.status)}`;
   return null;
 }
