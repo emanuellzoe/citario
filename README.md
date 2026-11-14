@@ -25,7 +25,7 @@ It only knows about use that goes through it. If ChatGPT or Claude read a paper 
 2. **A citation they can prove.** Every paid passage comes with a receipt: the passage hash, signed by the facilitator, recorded on chain against the article's content hash, priced by an attested model. A thesis committee or journal can check a quote instead of trusting it.
 3. **Paying authors on purpose.** An agent (or the company running it) can pay a citation fee to any DOI, even for a paper it read elsewhere. This is voluntary and cannot be enforced; it exists so the money has somewhere to go.
 
-Agents plug in through the HTTP API below (an MCP server is next on the roadmap), the same way a writing assistant or research agent would call a search tool.
+Agents plug in through the [MCP server](#use-it-from-an-agent-mcp) or the HTTP API, the same way a writing assistant or research agent calls a search tool. That tool call is the moment Citario knows a paper was used.
 
 ## What it does
 
@@ -71,6 +71,39 @@ The contract refuses `Paid` for any license outside the first row. With a DOI, C
 4. Any step can also be paid with **Your testnet wallet** instead of the demo agent: one transaction with `deposit` + `cite` (or `cite_doi`). Testnet NEAR: [near-faucet.io](https://near-faucet.io).
 
 The shared demo agent (`citario-demo-46d450.testnet`) holds only a function-call key for `cite`, `cite_fee` and `cite_doi`; its Citario balance (8 NEAR at launch) caps what visitors can spend, plus a per-IP hourly limit.
+
+## Use it from an agent (MCP)
+
+`packages/citario/src/mcp.ts` is a stdio MCP server, so Claude Desktop, Claude Code, Cursor or any MCP client can use Citario as a tool:
+
+| Tool | What it does |
+|---|---|
+| `citario_search` | papers on Citario, whether passages can be bought, price range |
+| `citario_lookup_doi` | Crossref metadata, license, text for sale or not, escrow waiting for the authors |
+| `citario_quote` | TEE-priced quote for the passage that answers a need (free; says `already_bought`) |
+| `citario_buy_passage` | pays the author on chain, returns the passage and a citation string with its tx and passage hash |
+| `citario_cite_doi` | citation fee to any DOI (escrow if no verified author) |
+| `citario_spending` | what this session bought, budget left |
+
+Spending stops at `CITARIO_MAX_SPEND_NEAR` per session (default 1), and the agent key can only call `cite`, `cite_fee` and `cite_doi`. Create a funded agent of your own with `pnpm run fund:demo-agent 2` (writes `DEMO_READER_*` to `.env`, which the server picks up), then add to your MCP client config:
+
+```json
+{
+  "mcpServers": {
+    "citario": {
+      "command": "node",
+      "args": ["/absolute/path/to/citario/packages/citario/src/mcp.ts"],
+      "env": { "CITARIO_URL": "https://citario.vercel.app", "CITARIO_MAX_SPEND_NEAR": "1" }
+    }
+  }
+}
+```
+
+or `claude mcp add citario -- node /absolute/path/to/citario/packages/citario/src/mcp.ts`. Then ask: *"Using Citario, what yield loss did unshaded plots have in the drought year? Cite it."*
+
+### Sample thesis agent
+
+`pnpm run thesis-agent` (needs `NEARAI_API_KEY`) runs a model on NEAR AI Cloud with the same tools and the rule "state a number only if you bought the passage". In the recorded run (`demo/thesis-run.log`) it searched, asked for three TEE-priced quotes, bought three passages for 0.54 NEAR (all paid to the author on chain) and wrote a paragraph whose every number comes from a bought passage, with a reference list of Citario citation strings (tx + passage hash). It also flagged, unprompted, that its third purchase duplicated part of the first and that one study is thin evidence for a literature review; quotes now carry `already_bought` to avoid the first problem.
 
 ## Run it yourself (testnet)
 
@@ -178,27 +211,28 @@ The facilitator is stateless: `/quote` returns a ticket (quote, span, pricing ev
 
 ```
 contracts/citario          Rust contract (near-sdk 5.29.1) + 20 unit tests
-packages/citario/src       facilitator, pricer (NEAR AI Cloud / local), crossref, reader agent, verify, storage
+packages/citario/src       facilitator, pricer (NEAR AI Cloud / local), crossref, agent tools, MCP server, reader CLI, verify, storage
 packages/citario/web       the web page
 api/index.ts               Vercel Function entry
 demo/setup.ts              testnet accounts, deploy, register, fund
 demo/run.ts                end-to-end demo (writes demo/last-run.log)
 demo/fund-demo-agent.ts    the shared demo agent for the hosted page
 demo/approve-author.ts     verifier CLI
+demo/thesis-agent.ts       sample thesis-writing agent (writes demo/thesis-run.log)
 deploy/articles            encrypted sample article for the deployed facilitator
 PRD.md                     the original spec (superseded where this README differs)
 ```
 
 ## Roadmap
 
-- **MCP server** so Claude, Cursor and any MCP client can search, quote, pay and cite through Citario; a sample thesis-writing agent that uses it.
+- Remote MCP endpoint (HTTP) next to the stdio server, and agent keys created from the web page.
 - Authorship by ORCID sign-in instead of a manual verifier check.
 - Facilitator in a confidential VM; end-to-end encrypted inference.
 - Author payouts through NEAR Intents in a stablecoin; gasless registration through a meta-transaction relayer.
 
 ## What is reused
 
-Built in the hackathon window. From the builder's own Sentraio: the `near-sdk = "=5.29.1"` pin, the `env::ed25519_verify` approval pattern and the `near-api-js` `Account` usage. Libraries: near-sdk, near-api-js 7.4.0, ethers 6 (ECDSA recovery), @vercel/blob, @hot-labs/near-connect (wallets), @noble/ed25519 (browser verify), esbuild, ed25519-dalek (tests). Metadata from the Crossref REST API. Code was written with Claude Code.
+Built in the hackathon window. From the builder's own Sentraio: the `near-sdk = "=5.29.1"` pin, the `env::ed25519_verify` approval pattern and the `near-api-js` `Account` usage. Libraries: near-sdk, near-api-js 7.4.0, ethers 6 (ECDSA recovery), @vercel/blob, @hot-labs/near-connect (wallets), @modelcontextprotocol/sdk + zod (MCP server), @noble/ed25519 (browser verify), esbuild, ed25519-dalek (tests). Metadata from the Crossref REST API. Code was written with Claude Code.
 
 ## License
 

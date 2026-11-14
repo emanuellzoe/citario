@@ -1,0 +1,43 @@
+Thesis agent · model deepseek-ai/DeepSeek-V4.1-Flash-1017 on NEAR AI Cloud · Citario at https://citario.vercel.app · agent citario-demo-46d450.testnet
+Topic: Do shade trees protect smallholder coffee yields in West Java during drought years?
+
+→ citario_search({"query":"shade trees coffee agroforestry drought"})
+    coffee-shade, doi-claim-mwgzcnuq, shade-and-yield-second-upload-fictional-c934
+→ citario_search({"query":"coffee yield shade West Java"})
+    coffee-shade, doi-claim-mwgzcnuq, shade-and-yield-second-upload-fictional-c934
+→ citario_quote({"article_id":"coffee-shade","need":"Quantitative effect of shade cover on coffee yield during drought years versus normal years in West Java smallholder plots"})
+    0.22 NEAR for 2 sentence(s) from "Results" (priced in TEE: true)
+→ citario_quote({"article_id":"coffee-shade","need":"Mechanism: shade trees and soil moisture retention / microclimate buffering during dry periods"})
+    0.18 NEAR for 1 sentence(s) from "Results" (priced in TEE: true)
+→ citario_quote({"article_id":"coffee-shade","need":"Trade-off or cost of shade: yield reduction under shade in non-drought years, or optimal shade level"})
+    0.14 NEAR for 1 sentence(s) from "Results" (priced in TEE: true)
+→ citario_buy_passage({"quote_id":"0244be729497d706f8ba920f"})
+    paid 0.22 NEAR → "In the normal year, shaded plots yielded 6 percent less cherry per bush than unshaded plots. In the drought year, shaded plots lost 11 percent of their normal-year yield while unshaded plots lost 27 percent."
+→ citario_buy_passage({"quote_id":"8eb749e243f5676821e26559"})
+    paid 0.18 NEAR → "In the driest month of 2025, mean soil moisture was 24.1 percent in shaded plots and 17.6 percent in unshaded plots."
+→ citario_buy_passage({"quote_id":"f651ba15902a6f7c1348c46d"})
+    paid 0.14 NEAR → "In the normal year, shaded plots yielded 6 percent less cherry per bush than unshaded plots."
+
+--- paragraph ---
+
+## Literature Review (draft paragraph)
+
+Whether shade trees protect smallholder coffee yields during drought is central to agroforestry recommendations in West Java. Evidence from smallholder plots indicates that shade is not uniformly beneficial but is strongly conditional on rainfall. In a normal year, shaded plots yielded 6 percent less cherry per bush than unshaded plots, suggesting a modest yield penalty from competition for light and nutrients where water is adequate. This penalty reverses under water stress: in the drought year, shaded plots lost 11 percent of their normal-year yield while unshaded plots lost 27 percent, so shade roughly halved the drought-induced yield loss. A plausible mechanism is microclimatic buffering and improved soil water retention; in the driest month of 2025, mean soil moisture was 24.1 percent in shaded plots and 17.6 percent in unshaded plots. These findings imply that the value of shade for smallholders is best framed as drought insurance rather than as a means of raising average yields.
+
+## References
+
+- dr-sari, "Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java". Passage bought via Citario (quote 0244be729497d706f8ba920f, testnet tx 6oQp7LZtxYQVdJU8oVjAaP6NE4jm6AFeZEJi29ohprRj, passage sha256 b2692ae9bd4ced59…).
+- dr-sari, "Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java". Passage bought via Citario (quote 8eb749e243f5676821e26559, testnet tx Fo1cBnFQDJCFvJWmsBrbWtnNzHw1gLvPWbVCxr2xr7Na, passage sha256 e3191e9473b3bec5…).
+- dr-sari, "Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java". Passage bought via Citario (quote f651ba15902a6f7c1348c46d, testnet tx 5En3MTMA2rBupALj6N5dTAPVtWbzrdhL2zdjYC7EsMAL, passage sha256 6ac167693e0d8a1a…).
+
+## Notes on process (two things worth flagging)
+
+1. **I wasted 0.14 NEAR.** The third passage I bought turned out to be the *first sentence* of the first passage I had already bought — I should have checked that before purchasing. Total spend was 0.54 of the 0.60 budget, but 0.14 of that bought nothing new. The paragraph is unaffected; the duplicate is simply redundant in the reference list.
+2. **Only one source is cited.** The search returned three hits, but one (`doi-claim-mwgzcnuq`) is publisher-licensed and not purchasable, and the other (`shade-and-yield-second-upload-fictional-c934`) appears to be a duplicate upload of the same work. So the entire empirical basis of this paragraph is a single study — which is thin for a thesis literature review. Before this goes into your chapter, you should either find independent corroborating studies (ideally peer-reviewed, with DOIs) or explicitly frame the paragraph as reporting one study's findings rather than a settled consensus.
+
+Also note the study's own framing: the 6% normal-year penalty and the 11% vs. 27% drought losses are single-year comparisons, so the "drought insurance" interpretation in my closing sentence is my inference, not a claim the paper makes. You may want to soften or attribute it.
+
+--- spent 0.54 NEAR of 0.6; every purchase paid the author on chain ---
+  passage: Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java (2 sentences) · 0.22 NEAR · tx 6oQp7LZtxYQVdJU8oVjAaP6NE4jm6AFeZEJi29ohprRj
+  passage: Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java (1 sentences) · 0.18 NEAR · tx Fo1cBnFQDJCFvJWmsBrbWtnNzHw1gLvPWbVCxr2xr7Na
+  passage: Shade, Soil Moisture and Yield in Smallholder Coffee Plots of West Java (1 sentences) · 0.14 NEAR · tx 5En3MTMA2rBupALj6N5dTAPVtWbzrdhL2zdjYC7EsMAL
