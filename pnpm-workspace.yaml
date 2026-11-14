@@ -1,4 +1,5 @@
 packages:
   - packages/*
 allowBuilds:
+  esbuild: true
   secp256k1: false

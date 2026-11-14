@@ -114,6 +114,11 @@ label:first-child{margin-top:0}
 input,select,textarea{width:100%;max-width:100%;font:15px var(--sans);padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink-strong)}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--blue);outline-offset:-1px}
 textarea{min-height:150px;font:12.5px/1.5 var(--mono)}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;background:var(--canvas);border:1px solid var(--line);border-radius:10px}
+.seg button{border:0;background:transparent;border-radius:7px;padding:9px 10px;font:500 14px var(--sans);color:var(--ink);cursor:pointer}
+.seg button.on{background:var(--white);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.who{margin-top:10px;font-size:14px;color:var(--ink);display:flex;gap:10px;align-items:center;flex-wrap:wrap;min-height:34px}
+.who .mono{color:var(--gray)}
 .presets{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
 .presets button{font:13px var(--sans);background:var(--white);border:1px solid var(--line);border-radius:8px;padding:5px 10px;cursor:pointer;color:var(--ink)}
 .presets button:hover{border-color:var(--ink)}
@@ -258,7 +263,12 @@ footer .wordmark{font-size:26px}
     <div class="dots">
       <div class="card form" style="margin-bottom:12px">
         <label>Article</label><select id="q-article"></select>
-        <label>Reader agent</label><select id="q-reader"></select>
+        <label>Who pays</label>
+        <div class="seg" id="mode">
+          <button class="on" data-mode="demo">Demo agent <span class="gray">· no wallet</span></button>
+          <button data-mode="wallet">Your testnet wallet</button>
+        </div>
+        <div class="who" id="who"></div>
         <label>What the agent needs</label><input id="q-need" value="what sample size did they use?">
         <div class="presets">
           <button data-need="what sample size did they use?">Sample size</button>
@@ -269,7 +279,7 @@ footer .wordmark{font-size:26px}
           <button class="btn" id="q-go">Get a quote</button>
           <button class="btn light" id="q-pay" disabled>Pay &amp; unlock</button>
         </div>
-        <p class="note">Pay &amp; unlock signs <span class="mono">cite</span> with the agent's limited key from <span class="mono">.env</span> (localhost only). A real agent pays itself.</p>
+        <p class="note" id="pay-note"></p>
       </div>
       <div class="tasks">
         <div class="task" id="tl-1"><div class="ic">1</div><div><h5>Quote from the TEE</h5><div class="kind">Agent task</div><div class="body">Waiting for a request.</div></div></div>
@@ -357,8 +367,11 @@ const tee = cfg.engine.startsWith('NEAR AI');
 $('net').textContent = `NEAR testnet · ${tee ? 'priced in a TEE' : 'local pricer (not attested)'}`;
 $('c-contract').textContent = cfg.contract;
 $('c-engine').textContent = tee ? 'TEE · NEAR AI Cloud' : 'attested: false';
-$('q-reader').innerHTML = (cfg.readers ?? []).map((r) => `<option>${esc(r)}</option>`).join('');
-if (cfg.readers?.[0]) $('n-reader').textContent = acct(cfg.readers[0]);
+const demoReader = cfg.demoReaders?.[0] ?? null;
+if (demoReader) $('n-reader').textContent = acct(demoReader);
+const LAST = 'citario:last-receipt';
+const remember = (receipt, passage) => { try { localStorage.setItem(LAST, JSON.stringify({ receipt, passage })); } catch {} };
+const recall = () => { try { return JSON.parse(localStorage.getItem(LAST) ?? 'null'); } catch { return null; } };
 
 // ---------- wires on the canvas ----------
 function drawWires() {
@@ -442,7 +455,62 @@ async function refresh() {
 }
 refresh();
 setInterval(refresh, 15000);
-fetch('/receipt/latest').then((r) => r.ok ? r.json() : null).then((j) => j && showChat(j.receipt)).catch(() => {});
+{
+  const mine = recall();
+  if (mine) showChat(mine.receipt);
+  else if (/^(localhost|127\.0\.0\.1)$/.test(location.hostname)) fetch('/receipt/latest').then((r) => r.ok ? r.json() : null).then((j) => j && showChat(j.receipt)).catch(() => {});
+}
+
+// ---------- who pays: demo agent or the visitor's wallet ----------
+let mode = demoReader ? 'demo' : 'wallet';
+let walletAccount = null;
+let connector = null;
+async function getConnector() {
+  if (!connector) {
+    const { NearConnector } = await import('https://cdn.jsdelivr.net/npm/@hot-labs/near-connect@0.11.4/+esm');
+    connector = new NearConnector({ network: 'testnet' });
+    connector.on?.('wallet:signOut', () => { walletAccount = null; renderWho(); });
+  }
+  return connector;
+}
+async function restoreWallet() {
+  try {
+    const c = await getConnector();
+    const w = await c.wallet();
+    const accs = await w.getAccounts();
+    walletAccount = accs?.[0]?.accountId ?? null;
+  } catch { walletAccount = null; }
+  renderWho();
+}
+function reader() { return mode === 'demo' ? demoReader : walletAccount; }
+function renderWho() {
+  document.querySelectorAll('#mode button').forEach((b) => b.classList.toggle('on', b.dataset.mode === mode));
+  if (mode === 'demo') {
+    $('who').innerHTML = demoReader
+      ? `<span class="chip gray">agent</span><b>${esc(demoReader)}</b><span class="mono">key can only call cite</span>`
+      : '<span class="bad">No demo agent configured on this server.</span>';
+    $('pay-note').innerHTML = 'The shared demo agent pays from its own Citario balance with a key that can only call <span class="mono">cite</span>. Spending stops when that balance runs out.';
+  } else {
+    $('who').innerHTML = walletAccount
+      ? `<span class="chip ok">connected</span><b>${esc(walletAccount)}</b><button class="btn light sm" id="w-out">Disconnect</button>`
+      : `<button class="btn sm" id="w-in">Connect testnet wallet</button><span class="gray" style="font-size:13px">Meteor, Intear, Nightly, Ledger…</span>`;
+    $('pay-note').innerHTML = 'Your wallet signs one transaction with two actions on the Citario contract: <span class="mono">deposit</span> (the price) and <span class="mono">cite</span>. Testnet NEAR only; get some at <a href="https://near-faucet.io" target="_blank" rel="noopener">near-faucet.io</a>.';
+    $('w-in')?.addEventListener('click', async () => {
+      try {
+        const c = await getConnector();
+        const w = await c.connect();
+        walletAccount = (await w.getAccounts())?.[0]?.accountId ?? null;
+      } catch (e) { $('who').insertAdjacentHTML('beforeend', `<span class="bad">${esc(e.message ?? e)}</span>`); return; }
+      renderWho();
+    });
+    $('w-out')?.addEventListener('click', async () => { try { const c = await getConnector(); await c.disconnect(); } catch {} walletAccount = null; renderWho(); });
+  }
+  $('n-reader').textContent = reader() ? acct(reader()) : 'you';
+}
+document.querySelectorAll('#mode button').forEach((b) => b.onclick = () => {
+  mode = b.dataset.mode; current = null; $('q-pay').disabled = true; resetTl(); renderWho();
+  if (mode === 'wallet' && !walletAccount) restoreWallet();
+});
 
 // ---------- quote / pay ----------
 const tl = (i, state, html) => {
@@ -456,14 +524,16 @@ const resetTl = () => {
 };
 document.querySelectorAll('.presets button').forEach((b) => b.onclick = () => { $('q-need').value = b.dataset.need; });
 let current = null;
+renderWho();
 
 $('q-go').onclick = async () => {
+  if (!reader()) { renderWho(); tl(1, 'fail', mode === 'wallet' ? 'Connect a testnet wallet first.' : 'No demo agent configured.'); return; }
   $('q-go').disabled = true; $('q-pay').disabled = true; current = null; resetTl();
   tl(1, 'on', 'The model is reading the article inside the TEE…');
   $('m-need').textContent = $('q-need').value;
   $('m-status').innerHTML = `<span class="spin"></span><b>Pricing agent</b><span class="what">reading the article inside the TEE…</span><span class="chip">Running</span>`;
   try {
-    const r = await fetch('/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ article_id: $('q-article').value, need: $('q-need').value, reader: $('q-reader').value }) });
+    const r = await fetch('/quote', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ article_id: $('q-article').value, need: $('q-need').value, reader: reader() }) });
     const q = await r.json();
     if (!r.ok) throw new Error(q.error);
     current = q;
@@ -484,11 +554,38 @@ $('q-go').onclick = async () => {
 $('q-pay').onclick = async () => {
   if (!current) return;
   $('q-pay').disabled = true; $('q-go').disabled = true;
-  tl(3, 'on', 'Sending <span class="mono">cite</span> to testnet and waiting for finality…');
   try {
-    const r = await fetch('/demo/pay', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ quote_id: current.quote.quote_id }) });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.error);
+    let d;
+    if (mode === 'demo') {
+      tl(3, 'on', 'The demo agent is sending <span class="mono">cite</span> to testnet and waiting for finality…');
+      const r = await fetch('/try/pay', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket: current.ticket }) });
+      d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+    } else {
+      tl(3, 'on', 'Confirm the transaction in your wallet: <span class="mono">deposit</span> + <span class="mono">cite</span>…');
+      const w = await (await getConnector()).wallet();
+      const out = await w.signAndSendTransaction({
+        receiverId: cfg.contract,
+        actions: [
+          { type: 'FunctionCall', params: { methodName: 'deposit', args: {}, gas: '30000000000000', deposit: current.quote.price } },
+          { type: 'FunctionCall', params: { methodName: 'cite', args: { quote: current.quote }, gas: '100000000000000', deposit: '0' } },
+        ],
+      });
+      const txHash = out?.transaction?.hash ?? out?.transaction_outcome?.id;
+      if (!txHash) throw new Error('the wallet did not return a transaction hash');
+      if (out?.status?.Failure) throw new Error(`cite rejected: ${JSON.stringify(out.status.Failure).slice(0, 200)}`);
+      tl(3, 'on', `Signed. Waiting for the facilitator to see <span class="mono">${esc(short(txHash, 8))}</span> on chain…`);
+      let r, j;
+      for (let i = 0; i < 6; i++) {
+        r = await fetch('/deliver', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ ticket: current.ticket, tx_hash: txHash }) });
+        j = await r.json();
+        if (r.ok || r.status !== 402) break;
+        await new Promise((s) => setTimeout(s, 2000));
+      }
+      if (!r.ok) throw new Error(j.error);
+      d = { ...j, tx_hash: txHash, explorer: `${cfg.explorer}/txns/${txHash}` };
+    }
+    remember(d.receipt, d.passage);
     tl(3, 'done', `Paid <b>${esc(current.price_near)} NEAR</b> from ${acct(d.receipt.reader)} to ${acct(d.receipt.article.author)} · <a href="${esc(d.explorer)}" target="_blank" rel="noopener" class="mono">${esc(short(d.tx_hash, 8))} ↗</a>`);
     tl(4, 'done', `<div class="passage">${esc(d.passage)}</div>
       <div class="row" style="margin-top:12px"><button class="btn light sm" id="to-verify">Verify this receipt ↓</button></div>`);
@@ -512,8 +609,14 @@ function quoteMessage(contract, reader, q) {
 const nearKeyBytes = (pk) => getBytes(toBeHex(decodeBase58(pk.replace(/^ed25519:/, '')), 32));
 
 $('v-latest').onclick = async () => {
-  const r = await fetch('/receipt/latest');
-  if (!r.ok) { $('v-out').innerHTML = '<div class="result-head bad">No receipt yet. Run a citation first.</div>'; return; }
+  const mine = recall();
+  if (mine) {
+    $('v-receipt').value = JSON.stringify(mine.receipt, null, 2);
+    $('v-passage').value = mine.passage ?? '';
+    return;
+  }
+  const r = await fetch('/receipt/latest').catch(() => null);
+  if (!r?.ok) { $('v-out').innerHTML = '<div class="result-head bad">No receipt in this browser yet. Run a citation above first.</div>'; return; }
   const j = await r.json();
   $('v-receipt').value = JSON.stringify(j.receipt, null, 2);
   $('v-passage').value = '';

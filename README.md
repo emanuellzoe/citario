@@ -29,7 +29,19 @@ Defences you can see in the demo:
 - **Forged quote** (agent edits a signed quote down to 0.001 NEAR): the contract rejects it with `quote not signed by the facilitator`.
 - **Paying for someone else's quote / replay / expiry**: the signed message includes the reader account and expiry; `quote_id` is single use (contract unit tests).
 
-## Try it (testnet, about 3 minutes)
+## Try it in the browser (no install)
+
+**https://citario.vercel.app** — live against NEAR testnet, pricing on NEAR AI Cloud in a TEE.
+
+1. Open the page → see NEAR paid to authors so far and the live flow diagram, read from testnet.
+2. Under **1.0 Quote**, keep **Demo agent · no wallet**, pick a need ("Sample size", "Full methods" or "Injection attempt") and click **Get a quote** → see a price from the TEE (`TEE-attested`), the passage size and a locked passage hash. No passage yet.
+3. Click **Pay & unlock** → the shared demo agent sends a real `cite` tx (link to nearblocks) and the passage appears.
+4. Click **Verify this receipt** → `All 15 checks passed`, computed in your browser against testnet RPC.
+5. Or switch to **Your testnet wallet** → **Connect testnet wallet** (Meteor, Intear, Nightly, Ledger…) → Get a quote → Pay & unlock signs one transaction with `deposit` (the price) + `cite`. Needs a little testnet NEAR ([near-faucet.io](https://near-faucet.io)).
+
+The demo agent (`citario-demo-204fb4.testnet`) holds only a function-call key limited to `cite`; its Citario balance (8 NEAR at launch) is the hard cap on what visitors can spend, plus a per-IP hourly limit. When it runs out, use a wallet.
+
+## Run it yourself (testnet, about 3 minutes)
 
 Requirements: Node 24+, pnpm, Rust with `wasm32-unknown-unknown` and [cargo-near](https://github.com/near/cargo-near). No wallet and no mainnet needed; the NEAR AI key is optional.
 
@@ -110,11 +122,14 @@ Why balances and not an attached deposit: a function-call access key cannot atta
 
 | Method | Path | Returns |
 |---|---|---|
-| POST | `/quote` `{article_id, need, reader}` | signed quote, price, sentence count, section, engine, `attested`, stripped lines |
-| POST | `/deliver` `{quote_id, tx_hash}` | `{passage, receipt}` or 402 with the reason |
+| POST | `/quote` `{article_id, need, reader}` | signed quote, a sealed `ticket`, price, sentence count, section, engine, `attested`, stripped lines |
+| POST | `/deliver` `{ticket, tx_hash}` | `{passage, receipt}` or 402 with the reason |
+| POST | `/try/pay` `{ticket}` | pays the quote with the shared demo agent (if the quote was for it), then delivers |
 | GET | `/receipt/:quote_id` | public receipt (no passage) |
 | GET | `/attestation` | last NEAR AI evidence the facilitator checked |
 | GET | `/health` | contract, engine, facilitator public key |
+
+The facilitator is stateless: `/quote` returns a ticket (quote, span and pricing evidence) sealed with an HMAC key derived from the facilitator secret, and `/deliver` takes it back. The same handler runs as a local Node server (`pnpm run facilitator`) and as a Vercel Function (`api/index.ts`, bundled by `pnpm run build:api`). The deployed function decrypts `deploy/articles/coffee-shade.enc` with `ARTICLE_KEY_HEX` from the Vercel environment.
 
 ## Layout
 
@@ -124,7 +139,9 @@ packages/citario/src     facilitator, pricer, reader agent, verify, chain RPC, a
 demo/setup.ts            testnet accounts, deploy, register, fund
 demo/run.ts              the end-to-end demo; writes demo/last-run.log
 demo/sample-article.md   fictional paper used by the demo
-packages/citario/web     the web page served by the facilitator
+packages/citario/web     the web page (served by the facilitator locally, static on Vercel)
+api/index.ts             Vercel Function entry
+deploy/articles          the encrypted sample article the deployed facilitator reads
 PRD.md                   the original product spec
 ```
 

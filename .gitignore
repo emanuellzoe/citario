@@ -7,3 +7,5 @@ contracts/*/target
 data/
 .vercel
 .DS_Store
+
+api/_lib/

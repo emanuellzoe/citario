@@ -54,7 +54,7 @@ export async function ask(opts: {
   log(`  paid: cite tx ${txHash}`);
   log(`        ${cfg.explorer}/txns/${txHash}`);
 
-  const d = await post('/deliver', { quote_id: qb.quote.quote_id, tx_hash: txHash });
+  const d = await post('/deliver', { ticket: qb.ticket, tx_hash: txHash });
   if (d.status !== 200) return { status: 'failed', quote: qb, tx_hash: txHash, error: `deliver ${d.status}: ${d.body.error}` };
   mkdirSync(join(DATA_DIR, 'receipts-reader'), { recursive: true });
   const file = join(DATA_DIR, 'receipts-reader', `${qb.quote.quote_id}.json`);

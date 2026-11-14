@@ -1,7 +1,7 @@
 // Article storage (AES-256-GCM at rest) and sentence splitting.
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { DATA_DIR, need } from './config.ts';
 
 export const sha256 = (s: string | Uint8Array) => createHash('sha256').update(s).digest('hex');
@@ -24,7 +24,9 @@ export function storeArticle(articleId: string, plaintext: string): string {
 /** Decrypts in memory only; the plaintext is never written back to disk. */
 export function loadArticle(articleId: string): string {
   if (!/^[a-z0-9-]{1,64}$/.test(articleId)) throw new Error('bad article id');
-  const buf = readFileSync(join(DATA_DIR, 'articles', `${articleId}.enc`));
+  const env = process.env.ARTICLES_DIR;
+  const dir = env ? (isAbsolute(env) ? env : join(process.cwd(), env)) : join(DATA_DIR, 'articles');
+  const buf = readFileSync(join(dir, `${articleId}.enc`));
   const d = createDecipheriv('aes-256-gcm', key(), buf.subarray(0, 12));
   d.setAuthTag(buf.subarray(12, 28));
   return Buffer.concat([d.update(buf.subarray(28)), d.final()]).toString('utf8');

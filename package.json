@@ -10,7 +10,9 @@
     "facilitator": "node packages/citario/src/facilitator.ts",
     "reader": "node packages/citario/src/reader.ts",
     "verify": "node packages/citario/src/verify.ts",
-    "demo": "node demo/run.ts"
+    "demo": "node demo/run.ts",
+    "fund:demo-agent": "node demo/fund-demo-agent.ts",
+    "build:api": "node demo/build-api.mjs"
   },
   "engines": {
     "node": ">=24"
@@ -19,5 +21,8 @@
   "dependencies": {
     "ethers": "6.15.0",
     "near-api-js": "7.4.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
   }
 }

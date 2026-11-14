@@ -1,0 +1,25 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm run build:api",
+  "outputDirectory": "packages/citario/web",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "deploy/articles/**",
+      "maxDuration": 120
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/(quote|deliver|config|health|attestation)",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/try/pay",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/receipt/:path*",
+      "destination": "/api/index"
+    }
+  ]
+}
