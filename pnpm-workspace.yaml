@@ -1,0 +1,4 @@
+packages:
+  - packages/*
+allowBuilds:
+  secp256k1: false

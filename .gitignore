@@ -1,6 +1,9 @@
 node_modules
 .next
 .env*
+!.env.example
 contracts/target
+contracts/*/target
+data/
 .vercel
 .DS_Store

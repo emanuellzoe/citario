@@ -1,0 +1,13 @@
+{
+  "name": "@citario/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "ethers": "6.15.0",
+    "near-api-js": "7.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0"
+  }
+}

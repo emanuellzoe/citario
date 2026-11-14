@@ -1,0 +1,23 @@
+{
+  "name": "citario",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:contract": "cd contracts/citario && cargo near build non-reproducible-wasm",
+    "test:contract": "cd contracts/citario && cargo test",
+    "test": "node --test packages/citario/test/*.test.ts",
+    "setup:testnet": "node demo/setup.ts",
+    "facilitator": "node packages/citario/src/facilitator.ts",
+    "reader": "node packages/citario/src/reader.ts",
+    "verify": "node packages/citario/src/verify.ts",
+    "demo": "node demo/run.ts"
+  },
+  "engines": {
+    "node": ">=24"
+  },
+  "packageManager": "pnpm@11.1.2",
+  "dependencies": {
+    "ethers": "6.15.0",
+    "near-api-js": "7.4.0"
+  }
+}
