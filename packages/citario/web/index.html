@@ -523,7 +523,7 @@ async function refresh() {
     : '<div style="padding:18px" class="gray">No citations yet.</div>';
 }
 refresh();
-setInterval(refresh, 15000);
+setInterval(() => { refresh(); if (walletAccount) renderAuthor(); }, 15000);
 {
   const mine = recall();
   if (mine) showChat(mine.receipt);
@@ -672,6 +672,7 @@ $('q-pay').onclick = async () => {
       $('v-go').click();
     };
     refresh();
+    if (walletAccount) renderAuthor();
     current = null;
     $('q-pay').textContent = 'Pay & unlock';
   } catch (e) {
@@ -738,7 +739,7 @@ async function lookupDoi() {
     const r2 = await fetch('/try/cite-doi', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ doi: j.doi }) });
     const k = await r2.json();
     $('d-res').innerHTML = r2.ok ? `Paid ${near(k.amount)} NEAR · <a class="mono" target="_blank" rel="noopener" href="${esc(k.explorer)}">${esc(short(k.tx_hash, 8))} ↗</a>` : `<span class="bad">${esc(k.error)}</span>`;
-    if (r2.ok) setTimeout(lookupDoi, 1500);
+    if (r2.ok) setTimeout(() => { lookupDoi(); if (walletAccount) renderAuthor(); }, 1500);
   });
   $('d-wallet').addEventListener('click', async () => {
     try {
@@ -746,7 +747,7 @@ async function lookupDoi() {
       $('d-res').innerHTML = '<span class="gray">Confirm in your wallet…</span>';
       const h = await walletCall('cite_doi', { doi: j.doi, amount: minFee }, minFee);
       $('d-res').innerHTML = `Paid ${near(minFee)} NEAR · <a class="mono" target="_blank" rel="noopener" href="${cfg.explorer}/txns/${esc(h)}">${esc(short(h, 8))} ↗</a>`;
-      setTimeout(lookupDoi, 1500);
+      setTimeout(() => { lookupDoi(); renderAuthor(); }, 1500);
     } catch (e) { $('d-res').innerHTML = `<span class="bad">${esc(e.message ?? e)}</span>`; }
   });
 }
@@ -761,6 +762,7 @@ async function renderAuthor() {
     return;
   }
   $('a-who').innerHTML = `<span class="chip ok">connected</span><b>${esc(walletAccount)}</b>`;
+  const keepMsg = $('a-wres')?.innerHTML ?? '';
   const [arts, bal, earned] = await Promise.all([view('list_articles', { limit: 100 }), view('author_balance', { author: walletAccount }), view('author_earnings', { author: walletAccount })]);
   const mine = arts.filter((a) => a.author === walletAccount);
   $('a-dash').innerHTML = `<div class="metric" style="margin:0 0 12px">
@@ -769,7 +771,8 @@ async function renderAuthor() {
       <div><div class="k">Papers</div><div class="v">${mine.length}</div></div>
     </div>
     <div class="row" style="margin-top:0"><button class="btn" id="a-withdraw" ${BigInt(bal) > 0n ? '' : 'disabled'}>Withdraw ${near(bal)} NEAR</button></div>
-    <div id="a-wres" style="margin-top:8px;font-size:14px"></div>
+    <div id="a-wres" style="margin-top:8px;font-size:14px">${keepMsg}</div>
+    <div class="gray" style="font-size:13px;margin-top:6px">Agents pay into this balance; Withdraw sends it to your wallet. Updates every 15 s.</div>
     ${mine.map((a) => `<div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px"><b style="font-weight:500">${esc(a.title)}</b><div style="margin-top:6px">${tags(a)}</div><div class="gray" style="font-size:13px;margin-top:6px">${a.citations} citations · ${near(a.earned)} NEAR earned</div></div>`).join('')}`;
   $('a-withdraw').onclick = async () => {
     try {

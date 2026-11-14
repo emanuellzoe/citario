@@ -2,3 +2,5 @@ contracts/citario/target
 data
 .env
 demo/last-run.log
+profile
+*.png
